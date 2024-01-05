@@ -1,0 +1,410 @@
+pip install pystan
+import math
+import numpy as np
+import pandas as pd
+import stan
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import beta
+from numpy import random
+from scipy.stats import norm
+import nest_asyncio
+import arviz as az
+from numpy.core.shape_base import vstack
+
+sns.set_style("whitegrid")  # Set the style directly using seaborn
+#sns.set(font="Times New Roman")  # Set the font using seaborn
+
+plt.rc('axes', labelsize=16)
+plt.rc('axes', titlesize=16)
+plt.rc('figure', titlesize=20)
+
+np.random.seed(101)
+pi = math.pi
+ActualRunTime = 8256*3600
+Runtime = 1000
+N_L = int(0.9 * Runtime)
+N_T = int(0.1 * Runtime)
+num_PionDet = 28
+num_MainDet = 84
+Theta_uncertainty = 0.017453292519943295 #1degree
+Phi_uncertainty = 0.017453292519943295   #1degree
+
+#Rates values from simulations at
+#/home/elhamm/projects/def-wdconinc/elhamm/PionDetectorOptimization/simulation/run/remoll-Updated-July2023/Moller_Asymmetry/MainDet
+#/home/elhamm/projects/def-wdconinc/elhamm/PionDetectorOptimization/simulation/run/remoll-Updated-July2023/Pion_Asymmetry/PionDet
+
+I_Pion = 65  # Current (Micro-A [GHz])
+#Rate_Mollers_PionDet = 3.5428*1e6
+Rate_Mollers_PionDet = 8.54726*1e9
+#Rate_Pions_PionDet = 1.71955*1e5
+Rate_Pions_PionDet = 9.22396*1e10
+Rates_PionDet = Rate_Pions_PionDet + Rate_Mollers_PionDet
+Total_Rates_PionDet = (Rates_PionDet/(50*85*28))*65
+Uncertainty_total_PionDet= ((1/np.sqrt(Total_Rates_PionDet*1e-3*(Runtime)))*1e9)*(91/82)
+Uncertainty_L_PionDet = ((1/np.sqrt(Total_Rates_PionDet*1e-3*Runtime*0.9))*1e9)*(91/82)
+Uncertainty_T_PionDet = ((1/np.sqrt(Total_Rates_PionDet*1e-3*Runtime*0.1))*1e9)*(91/82)
+
+#Rate_Mollers_MainDet = 2.77266*1e8
+Rate_Mollers_MainDet = 1.3573441*1e14
+#Rate_Pions_MainDet = 2.27860*1e6
+Rate_Pions_MainDet =1.1465975*1e11
+Rates_MainDet = Rate_Pions_MainDet + Rate_Mollers_MainDet
+Total_Rates_MainDet = (Rates_MainDet/(50*84))
+Uncertainty_total_MainDet= ((1/np.sqrt(Total_Rates_MainDet*1e-3*Runtime))*1e9)*(91/82)
+Uncertainty_L_MainDet = ((1/np.sqrt(Total_Rates_MainDet*1e-3*Runtime*0.9))*1e9)*(91/82)
+Uncertainty_T_MainDet = ((1/np.sqrt(Total_Rates_MainDet*1e-3*Runtime*0.1))*1e9)*(91/82)
+
+print(Total_Rates_PionDet, Total_Rates_MainDet, "Uncertainty_L_PionDet=", Uncertainty_L_PionDet, "Uncertainty_L_MainDet=", Uncertainty_L_MainDet, "Uncertainty_T_PionDet=", Uncertainty_T_PionDet, "Uncertainty_T_MainDet=", Uncertainty_T_MainDet, "Uncertainty_total_PionDet=",Uncertainty_total_PionDet, "Uncertainty_total_MainDet=", Uncertainty_total_MainDet)
+Pion_Asy_L_PionDet = pd.read_csv('Pion_Asymmetry_Longitudinal_PionDet.csv')
+Pion_Asy_TV_PionDet = pd.read_csv('Pion_Asymmetry_Transverse_Vertical_PionDet.csv')
+Pion_Asy_TH_PionDet = pd.read_csv('Pion_Asymmetry_Transverse_Horizontal_PionDet.csv')
+
+Pion_Asy_L_MainDet = pd.read_csv('Pion_Asymmetry-longitudinal-MainDet-Ring5.csv')
+Pion_Asy_TV_MainDet = pd.read_csv('Pion_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Pion_Asy_TH_MainDet = pd.read_csv('Pion_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+
+Moller_Asy_L_PionDet = pd.read_csv('Moller_Asymmetry_Longitudinal_PionDet.csv')
+Moller_Asy_TV_PionDet = pd.read_csv('Moller_Asymmetry-transverse-vertical-PionDet.csv')
+Moller_Asy_TH_PionDet = pd.read_csv('Moller_Asymmetry-transverse-horizontal-PionDet.csv')
+
+Moller_Asy_L_MainDet = pd.read_csv('Moller_Asymmetry-longitudinal-MainDet-Ring5.csv')
+Moller_Asy_TV_MainDet = pd.read_csv('Moller_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Moller_Asy_TH_MainDet = pd.read_csv('Moller_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+
+Dilution_Factor_PionDet = pd.read_csv('Dilution Factor_PionDet.csv')
+Dilution_Factor_MainDet = pd.read_csv('Dilution Factor_MainDet.csv')
+
+Normalized_Moller_Asy_TV_PionDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-vertical-PionDet.csv')
+Normalized_Moller_Asy_TH_PionDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-horizontal-PionDet.csv')
+Normalized_Pion_Asy_TV_PionDet = pd.read_csv('Normalized_Pion_Asymmetry_Transverse_Vertical_PionDet.csv')
+Normalized_Pion_Asy_TH_PionDet = pd.read_csv('Normalized_Pion_Asymmetry_Transverse_Horizontal_PionDet.csv')
+
+Normalized_Moller_Asy_TV_MainDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Normalized_Moller_Asy_TH_MainDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+Normalized_Pion_Asy_TV_MainDet = pd.read_csv('Normalized_Pion_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Normalized_Pion_Asy_TH_MainDet = pd.read_csv('Normalized_Pion_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+
+
+# Convert columns to numpy arrays
+Data_A_eT_V_PionDet = Normalized_Moller_Asy_TV_PionDet.Normalized_Moller_Asymmetry
+Data_A_eT_H_PionDet = Normalized_Moller_Asy_TH_PionDet.Normalized_Moller_Asymmetry
+Data_A_piT_V_PionDet = Normalized_Pion_Asy_TV_PionDet.Normalized_Pion_Asymmetry
+Data_A_piT_H_PionDet = Normalized_Pion_Asy_TH_PionDet.Normalized_Pion_Asymmetry
+
+Data_A_eT_V_MainDet = Normalized_Moller_Asy_TV_MainDet.Normalized_Moller_Asymmetry
+Data_A_eT_H_MainDet = Normalized_Moller_Asy_TH_MainDet.Normalized_Moller_Asymmetry
+Data_A_piT_V_MainDet = Normalized_Pion_Asy_TV_MainDet.Normalized_Pion_Asymmetry
+Data_A_piT_H_MainDet = Normalized_Pion_Asy_TH_MainDet.Normalized_Pion_Asymmetry
+#print(Measured_Asymmetry, Measured_Asymmetry.shape)
+
+#print(Dilution_Factor_MainDet)
+
+#Generating Mock Data - Longitudinal
+Measured_Asymmetry_PionDet_L = np.zeros((num_PionDet, N_L))
+Measured_Asymmetry_MainDet_L = np.zeros((num_MainDet, N_L))
+
+Measured_Asymmetry_PionDet_L_True = np.zeros((num_PionDet, N_L))
+Measured_Asymmetry_MainDet_L_True = np.zeros((num_MainDet, N_L))
+
+for iteration in range(N_L):
+  Pion_Asymmetry_L_PionDet = []
+  Moller_Asymmetry_L_PionDet = []
+  dAsymmetry_L_PionDet = []
+  Pion_Asymmetry_TV_PionDet = []
+  Pion_Asymmetry_TH_PionDet =[]
+  Moller_Asymmetry_TV_PionDet = []
+  Moller_Asymmetry_TH_PionDet =[]
+  f_Pi_PionDet = []
+
+  Pion_Asymmetry_L_MainDet = []
+  Moller_Asymmetry_L_MainDet = []
+  dAsymmetry_L_MainDet = []
+  Pion_Asymmetry_TV_MainDet = []
+  Pion_Asymmetry_TH_MainDet =[]
+  Moller_Asymmetry_TV_MainDet = []
+  Moller_Asymmetry_TH_MainDet =[]
+  f_Pi_MainDet = []
+
+  Pion_Asymmetry_L_PionDet_True = []
+  Moller_Asymmetry_L_PionDet_True = []
+  Pion_Asymmetry_TV_PionDet_True = []
+  Pion_Asymmetry_TH_PionDet_True =[]
+  Moller_Asymmetry_TV_PionDet_True = []
+  Moller_Asymmetry_TH_PionDet_True =[]
+  Measured_f_Pi_PionDet_True = []
+
+  Pion_Asymmetry_L_MainDet_True = []
+  Moller_Asymmetry_L_MainDet_True = []
+  Pion_Asymmetry_TV_MainDet_True = []
+  Pion_Asymmetry_TH_MainDet_True =[]
+  Moller_Asymmetry_TV_MainDet_True = []
+  Moller_Asymmetry_TH_MainDet_True =[]
+  Measured_f_Pi_MainDet_True = []
+
+  theta_L = np.random.normal(0, Theta_uncertainty)
+  phi_L = np.random.normal(0, pi)
+
+  for i in range(num_PionDet):
+     Pion_Asymmetry_L_PionDet_value = np.random.normal(Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_PionDet)
+     Pion_Asymmetry_L_PionDet.append(Pion_Asymmetry_L_PionDet_value)
+     Moller_Asymmetry_L_PionDet_value = np.random.normal(Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_PionDet)
+     Moller_Asymmetry_L_PionDet.append(Moller_Asymmetry_L_PionDet_value)
+     Pion_Asymmetry_TV_PionDet_value = np.random.normal(Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_PionDet)
+     Pion_Asymmetry_TV_PionDet.append(Pion_Asymmetry_TV_PionDet_value)
+     Pion_Asymmetry_TH_PionDet_value = np.random.normal(Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_PionDet)
+     Pion_Asymmetry_TH_PionDet.append(Pion_Asymmetry_TH_PionDet_value)
+     Moller_Asymmetry_TV_PionDet_value = np.random.normal(Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_PionDet)
+     Moller_Asymmetry_TV_PionDet.append(Moller_Asymmetry_TV_PionDet_value)
+     Moller_Asymmetry_TH_PionDet_value = np.random.normal(Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_PionDet)
+     Moller_Asymmetry_TH_PionDet.append(Moller_Asymmetry_TH_PionDet_value)
+     f_Pi_PionDet_value = np.random.normal(Dilution_Factor_PionDet.at[i, 'Ratio'], Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+     f_Pi_PionDet.append(f_Pi_PionDet_value)
+
+     Pion_Asymmetry_L_PionDet_True_value = (Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_L_PionDet_True.append(Pion_Asymmetry_L_PionDet_True_value)
+     Moller_Asymmetry_L_PionDet_True_value = (Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_L_PionDet_True.append(Moller_Asymmetry_L_PionDet_True_value)
+     Pion_Asymmetry_TV_PionDet_True_value = (Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TV_PionDet_True.append(Pion_Asymmetry_TV_PionDet_True_value)
+     Pion_Asymmetry_TH_PionDet_True_value = (Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TH_PionDet_True.append(Pion_Asymmetry_TH_PionDet_True_value)
+     Moller_Asymmetry_TV_PionDet_True_value = (Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TV_PionDet_True.append(Moller_Asymmetry_TV_PionDet_True_value)
+     Moller_Asymmetry_TH_PionDet_True_value = (Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TH_PionDet_True.append(Moller_Asymmetry_TH_PionDet_True_value)
+     f_Pi_PionDet_True_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
+     Measured_f_Pi_PionDet_True.append(f_Pi_PionDet_True_value)
+
+  # Convert the entire list to a numpy array
+  A_piL_PionDet = np.array(Pion_Asymmetry_L_PionDet)
+  A_eL_PionDet = np.array(Moller_Asymmetry_L_PionDet)
+  A_piTV_PionDet = np.array(Pion_Asymmetry_TV_PionDet)
+  A_eTV_PionDet = np.array(Moller_Asymmetry_TV_PionDet)
+  A_piTH_PionDet = np.array(Pion_Asymmetry_TH_PionDet)
+  A_eTH_PionDet = np.array(Moller_Asymmetry_TH_PionDet)
+  f_Pi_PionDet = np.array(f_Pi_PionDet)
+
+  A_eL_PionDet_True = np.array(Moller_Asymmetry_L_PionDet_True)
+  A_eTV_PionDet_True = np.array(Moller_Asymmetry_TV_PionDet_True)
+  A_eTH_PionDet_True = np.array(Moller_Asymmetry_TH_PionDet_True)
+  A_piL_PionDet_True = np.array(Pion_Asymmetry_L_PionDet_True)
+  A_piTV_PionDet_True = np.array(Pion_Asymmetry_TV_PionDet_True)
+  A_piTH_PionDet_True = np.array(Pion_Asymmetry_TH_PionDet_True)
+  f_Pi_PionDet_True = np.array(Measured_f_Pi_PionDet_True)
+
+  for i in range(num_PionDet):
+     Measured_Asymmetry_PionDet_L_value = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet[i]*np.sin(phi_L) + A_eTH_PionDet[i]*np.cos(phi_L))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet[i]*np.sin(phi_L) + A_piTH_PionDet[i]*np.cos(phi_L)))
+     Measured_Asymmetry_PionDet_L[i, iteration] = Measured_Asymmetry_PionDet_L_value
+     Measured_Asymmetry_PionDet_L_value_True = (1 - f_Pi_PionDet_True[i]) * (A_eL_PionDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet_True[i]*np.sin(phi_L) + A_eTH_PionDet_True[i]*np.cos(phi_L))) + f_Pi_PionDet_True[i] * (A_piL_PionDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet_True[i]*np.sin(phi_L) + A_piTH_PionDet_True[i]*np.cos(phi_L)))
+     Measured_Asymmetry_PionDet_L_True[i, iteration] = Measured_Asymmetry_PionDet_L_value_True
+
+  for i in range(num_MainDet):
+     Pion_Asymmetry_L_MainDet_value = np.random.normal(Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_MainDet)
+     Pion_Asymmetry_L_MainDet.append(Pion_Asymmetry_L_MainDet_value)
+     Moller_Asymmetry_L_MainDet_value = np.random.normal(Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_MainDet)
+     Moller_Asymmetry_L_MainDet.append(Moller_Asymmetry_L_MainDet_value)
+     Pion_Asymmetry_TV_MainDet_value = np.random.normal(Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_MainDet)
+     Pion_Asymmetry_TV_MainDet.append(Pion_Asymmetry_TV_MainDet_value)
+     Pion_Asymmetry_TH_MainDet_value = np.random.normal(Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_MainDet)
+     Pion_Asymmetry_TH_MainDet.append(Pion_Asymmetry_TH_MainDet_value)
+     Moller_Asymmetry_TV_MainDet_value = np.random.normal(Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_MainDet)
+     Moller_Asymmetry_TV_MainDet.append(Moller_Asymmetry_TV_MainDet_value)
+     Moller_Asymmetry_TH_MainDet_value = np.random.normal(Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_MainDet)
+     Moller_Asymmetry_TH_MainDet.append(Moller_Asymmetry_TH_MainDet_value)
+     f_Pi_MainDet_value = np.random.normal(Dilution_Factor_MainDet.at[i, 'Ratio'], Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
+     f_Pi_MainDet.append(f_Pi_MainDet_value)
+
+     Pion_Asymmetry_L_MainDet_True_value = (Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_L_MainDet_True.append(Pion_Asymmetry_L_MainDet_True_value)
+     Moller_Asymmetry_L_MainDet_True_value = (Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_L_MainDet_True.append(Moller_Asymmetry_L_MainDet_True_value)
+     Pion_Asymmetry_TV_MainDet_True_value = (Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TV_MainDet_True.append(Pion_Asymmetry_TV_MainDet_True_value)
+     Pion_Asymmetry_TH_MainDet_True_value = (Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TH_MainDet_True.append(Pion_Asymmetry_TH_MainDet_True_value)
+     Moller_Asymmetry_TV_MainDet_True_value = (Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TV_MainDet_True.append(Moller_Asymmetry_TV_MainDet_True_value)
+     Moller_Asymmetry_TH_MainDet_True_value = (Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TH_MainDet_True.append(Moller_Asymmetry_TH_MainDet_True_value)
+     f_Pi_MainDet_True_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
+     Measured_f_Pi_MainDet_True.append(f_Pi_MainDet_True_value)
+
+  # Convert the entire list to a numpy array
+  A_piL_MainDet = np.array(Pion_Asymmetry_L_MainDet)
+  A_eL_MainDet = np.array(Moller_Asymmetry_L_MainDet)
+  A_piTV_MainDet = np.array(Pion_Asymmetry_TV_MainDet)
+  A_eTV_MainDet = np.array(Moller_Asymmetry_TV_MainDet)
+  A_piTH_MainDet = np.array(Pion_Asymmetry_TH_MainDet)
+  A_eTH_MainDet = np.array(Moller_Asymmetry_TH_MainDet)
+  f_Pi_MainDet = np.array(f_Pi_MainDet)
+
+  A_eL_MainDet_True = np.array(Moller_Asymmetry_L_MainDet_True)
+  A_eTV_MainDet_True = np.array(Moller_Asymmetry_TV_MainDet_True)
+  A_eTH_MainDet_True = np.array(Moller_Asymmetry_TH_MainDet_True)
+  A_piL_MainDet_True = np.array(Pion_Asymmetry_L_MainDet_True)
+  A_piTV_MainDet_True = np.array(Pion_Asymmetry_TV_MainDet_True)
+  A_piTH_MainDet_True = np.array(Pion_Asymmetry_TH_MainDet_True)
+  f_Pi_MainDet_True = np.array(Measured_f_Pi_MainDet_True)
+
+  for i in range(num_MainDet):
+     Measured_Asymmetry_MainDet_L_value = (1 - f_Pi_MainDet[i]) * (A_eL_MainDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_MainDet[i]*np.sin(phi_L) + A_eTH_MainDet[i]*np.cos(phi_L))) + f_Pi_MainDet[i] * (A_piL_MainDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_MainDet[i]*np.sin(phi_L) + A_piTH_MainDet[i]*np.cos(phi_L)))
+     Measured_Asymmetry_MainDet_L[i, iteration] = Measured_Asymmetry_MainDet_L_value
+     Measured_Asymmetry_MainDet_L_value_True = (1 - f_Pi_MainDet_True[i]) * (A_eL_MainDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_MainDet_True[i]*np.sin(phi_L) + A_eTH_MainDet_True[i]*np.cos(phi_L))) + f_Pi_MainDet_True[i] * (A_piL_MainDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_MainDet_True[i]*np.sin(phi_L) + A_piTH_MainDet_True[i]*np.cos(phi_L)))
+     Measured_Asymmetry_MainDet_L_True[i, iteration] = Measured_Asymmetry_MainDet_L_value_True
+
+print(Measured_Asymmetry_PionDet_L.shape, Measured_Asymmetry_PionDet_L_True.shape, Measured_Asymmetry_MainDet_L.shape, Measured_Asymmetry_MainDet_L_True.shape)
+#Generating Mock Data - Transverse
+Measured_Asymmetry_PionDet_T = np.zeros((num_PionDet, N_T))
+Measured_Asymmetry_MainDet_T = np.zeros((num_MainDet, N_T))
+
+Measured_Asymmetry_PionDet_T_True = np.zeros((num_PionDet, N_T))
+Measured_Asymmetry_MainDet_T_True = np.zeros((num_MainDet, N_T))
+
+for iteration in range(N_T):
+  Pion_Asymmetry_L_PionDet = []
+  Moller_Asymmetry_L_PionDet = []
+  dAsymmetry_L_PionDet = []
+  Pion_Asymmetry_TV_PionDet = []
+  Pion_Asymmetry_TH_PionDet =[]
+  Moller_Asymmetry_TV_PionDet = []
+  Moller_Asymmetry_TH_PionDet =[]
+  f_Pi_PionDet = []
+
+  Pion_Asymmetry_L_MainDet = []
+  Moller_Asymmetry_L_MainDet = []
+  dAsymmetry_L_MainDet = []
+  Pion_Asymmetry_TV_MainDet = []
+  Pion_Asymmetry_TH_MainDet =[]
+  Moller_Asymmetry_TV_MainDet = []
+  Moller_Asymmetry_TH_MainDet =[]
+  f_Pi_MainDet = []
+
+  Pion_Asymmetry_L_PionDet_True = []
+  Moller_Asymmetry_L_PionDet_True = []
+  Pion_Asymmetry_TV_PionDet_True = []
+  Pion_Asymmetry_TH_PionDet_True =[]
+  Moller_Asymmetry_TV_PionDet_True = []
+  Moller_Asymmetry_TH_PionDet_True =[]
+  Measured_f_Pi_PionDet_True = []
+
+  Pion_Asymmetry_L_MainDet_True = []
+  Moller_Asymmetry_L_MainDet_True = []
+  Pion_Asymmetry_TV_MainDet_True = []
+  Pion_Asymmetry_TH_MainDet_True =[]
+  Moller_Asymmetry_TV_MainDet_True = []
+  Moller_Asymmetry_TH_MainDet_True =[]
+  Measured_f_Pi_MainDet_True = []
+
+  theta_T = np.random.normal(pi/2, Theta_uncertainty)
+  phi_T = np.random.normal(0, Phi_uncertainty)
+
+  for i in range(num_PionDet):
+     Pion_Asymmetry_L_PionDet_value = np.random.normal(Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_PionDet)
+     Pion_Asymmetry_L_PionDet.append(Pion_Asymmetry_L_PionDet_value)
+     Moller_Asymmetry_L_PionDet_value = np.random.normal(Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_PionDet)
+     Moller_Asymmetry_L_PionDet.append(Moller_Asymmetry_L_PionDet_value)
+     Pion_Asymmetry_TV_PionDet_value = np.random.normal(Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_PionDet)
+     Pion_Asymmetry_TV_PionDet.append(Pion_Asymmetry_TV_PionDet_value)
+     Pion_Asymmetry_TH_PionDet_value = np.random.normal(Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_PionDet)
+     Pion_Asymmetry_TH_PionDet.append(Pion_Asymmetry_TH_PionDet_value)
+     Moller_Asymmetry_TV_PionDet_value = np.random.normal(Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_PionDet)
+     Moller_Asymmetry_TV_PionDet.append(Moller_Asymmetry_TV_PionDet_value)
+     Moller_Asymmetry_TH_PionDet_value = np.random.normal(Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_PionDet)
+     Moller_Asymmetry_TH_PionDet.append(Moller_Asymmetry_TH_PionDet_value)
+     f_Pi_PionDet_value = np.random.normal(Dilution_Factor_PionDet.at[i, 'Ratio'], Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+     f_Pi_PionDet.append(f_Pi_PionDet_value)
+
+     Pion_Asymmetry_L_PionDet_True_value = (Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_L_PionDet_True.append(Pion_Asymmetry_L_PionDet_True_value)
+     Moller_Asymmetry_L_PionDet_True_value = (Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_L_PionDet_True.append(Moller_Asymmetry_L_PionDet_True_value)
+     Pion_Asymmetry_TV_PionDet_True_value = (Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TV_PionDet_True.append(Pion_Asymmetry_TV_PionDet_True_value)
+     Pion_Asymmetry_TH_PionDet_True_value = (Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TH_PionDet_True.append(Pion_Asymmetry_TH_PionDet_True_value)
+     Moller_Asymmetry_TV_PionDet_True_value = (Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TV_PionDet_True.append(Moller_Asymmetry_TV_PionDet_True_value)
+     Moller_Asymmetry_TH_PionDet_True_value = (Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TH_PionDet_True.append(Moller_Asymmetry_TH_PionDet_True_value)
+     f_Pi_PionDet_True_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
+     Measured_f_Pi_PionDet_True.append(f_Pi_PionDet_True_value)
+
+  # Convert the entire list to a numpy array
+  A_piL_PionDet = np.array(Pion_Asymmetry_L_PionDet)
+  A_eL_PionDet = np.array(Moller_Asymmetry_L_PionDet)
+  A_piTV_PionDet = np.array(Pion_Asymmetry_TV_PionDet)
+  A_eTV_PionDet = np.array(Moller_Asymmetry_TV_PionDet)
+  A_piTH_PionDet = np.array(Pion_Asymmetry_TH_PionDet)
+  A_eTH_PionDet = np.array(Moller_Asymmetry_TH_PionDet)
+  f_Pi_PionDet = np.array(f_Pi_PionDet)
+
+  A_eL_PionDet_True = np.array(Moller_Asymmetry_L_PionDet_True)
+  A_eTV_PionDet_True = np.array(Moller_Asymmetry_TV_PionDet_True)
+  A_eTH_PionDet_True = np.array(Moller_Asymmetry_TH_PionDet_True)
+  A_piL_PionDet_True = np.array(Pion_Asymmetry_L_PionDet_True)
+  A_piTV_PionDet_True = np.array(Pion_Asymmetry_TV_PionDet_True)
+  A_piTH_PionDet_True = np.array(Pion_Asymmetry_TH_PionDet_True)
+  f_Pi_PionDet_True = np.array(Measured_f_Pi_PionDet_True)
+
+  for i in range(num_PionDet):
+     Measured_Asymmetry_PionDet_T_value = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_PionDet[i]*np.sin(phi_T) + A_eTH_PionDet[i]*np.cos(phi_T))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_PionDet[i]*np.sin(phi_T) + A_piTH_PionDet[i]*np.cos(phi_T)))
+     Measured_Asymmetry_PionDet_T[i, iteration] = Measured_Asymmetry_PionDet_T_value
+     Measured_Asymmetry_PionDet_T_value_True = (1 - f_Pi_PionDet_True[i]) * (A_eL_PionDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_PionDet_True[i]*np.sin(phi_T) + A_eTH_PionDet_True[i]*np.cos(phi_T))) + f_Pi_PionDet_True[i] * (A_piL_PionDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_PionDet_True[i]*np.sin(phi_T) + A_piTH_PionDet_True[i]*np.cos(phi_T)))
+     Measured_Asymmetry_PionDet_T_True[i, iteration] = Measured_Asymmetry_PionDet_T_value_True
+
+  for i in range(num_MainDet):
+     Pion_Asymmetry_L_MainDet_value = np.random.normal(Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_MainDet)
+     Pion_Asymmetry_L_MainDet.append(Pion_Asymmetry_L_MainDet_value)
+     Moller_Asymmetry_L_MainDet_value = np.random.normal(Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_MainDet)
+     Moller_Asymmetry_L_MainDet.append(Moller_Asymmetry_L_MainDet_value)
+     Pion_Asymmetry_TV_MainDet_value = np.random.normal(Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_MainDet)
+     Pion_Asymmetry_TV_MainDet.append(Pion_Asymmetry_TV_MainDet_value)
+     Pion_Asymmetry_TH_MainDet_value = np.random.normal(Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_MainDet)
+     Pion_Asymmetry_TH_MainDet.append(Pion_Asymmetry_TH_MainDet_value)
+     Moller_Asymmetry_TV_MainDet_value = np.random.normal(Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_MainDet)
+     Moller_Asymmetry_TV_MainDet.append(Moller_Asymmetry_TV_MainDet_value)
+     Moller_Asymmetry_TH_MainDet_value = np.random.normal(Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_MainDet)
+     Moller_Asymmetry_TH_MainDet.append(Moller_Asymmetry_TH_MainDet_value)
+     f_Pi_MainDet_value = np.random.normal(Dilution_Factor_MainDet.at[i, 'Ratio'], Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
+     f_Pi_MainDet.append(f_Pi_MainDet_value)
+
+     Pion_Asymmetry_L_MainDet_True_value = (Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_L_MainDet_True.append(Pion_Asymmetry_L_MainDet_True_value)
+     Moller_Asymmetry_L_MainDet_True_value = (Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_L_MainDet_True.append(Moller_Asymmetry_L_MainDet_True_value)
+     Pion_Asymmetry_TV_MainDet_True_value = (Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TV_MainDet_True.append(Pion_Asymmetry_TV_MainDet_True_value)
+     Pion_Asymmetry_TH_MainDet_True_value = (Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TH_MainDet_True.append(Pion_Asymmetry_TH_MainDet_True_value)
+     Moller_Asymmetry_TV_MainDet_True_value = (Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TV_MainDet_True.append(Moller_Asymmetry_TV_MainDet_True_value)
+     Moller_Asymmetry_TH_MainDet_True_value = (Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TH_MainDet_True.append(Moller_Asymmetry_TH_MainDet_True_value)
+     f_Pi_MainDet_True_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
+     Measured_f_Pi_MainDet_True.append(f_Pi_MainDet_True_value)
+
+  # Convert the entire list to a numpy array
+  A_piL_MainDet = np.array(Pion_Asymmetry_L_MainDet)
+  A_eL_MainDet = np.array(Moller_Asymmetry_L_MainDet)
+  A_piTV_MainDet = np.array(Pion_Asymmetry_TV_MainDet)
+  A_eTV_MainDet = np.array(Moller_Asymmetry_TV_MainDet)
+  A_piTH_MainDet = np.array(Pion_Asymmetry_TH_MainDet)
+  A_eTH_MainDet = np.array(Moller_Asymmetry_TH_MainDet)
+  f_Pi_MainDet = np.array(f_Pi_MainDet)
+
+  A_eL_MainDet_True = np.array(Moller_Asymmetry_L_MainDet_True)
+  A_eTV_MainDet_True = np.array(Moller_Asymmetry_TV_MainDet_True)
+  A_eTH_MainDet_True = np.array(Moller_Asymmetry_TH_MainDet_True)
+  A_piL_MainDet_True = np.array(Pion_Asymmetry_L_MainDet_True)
+  A_piTV_MainDet_True = np.array(Pion_Asymmetry_TV_MainDet_True)
+  A_piTH_MainDet_True = np.array(Pion_Asymmetry_TH_MainDet_True)
+  f_Pi_MainDet_True = np.array(Measured_f_Pi_MainDet_True)
+
+  for i in range(num_MainDet):
+     Measured_Asymmetry_MainDet_T_value = (1 - f_Pi_MainDet[i]) * (A_eL_MainDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_MainDet[i]*np.sin(phi_T) + A_eTH_MainDet[i]*np.cos(phi_T))) + f_Pi_MainDet[i] * (A_piL_MainDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_MainDet[i]*np.sin(phi_T) + A_piTH_MainDet[i]*np.cos(phi_T)))
+     Measured_Asymmetry_MainDet_T[i, iteration] = Measured_Asymmetry_MainDet_T_value
+     Measured_Asymmetry_MainDet_T_value_True = (1 - f_Pi_MainDet_True[i]) * (A_eL_MainDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_MainDet_True[i]*np.sin(phi_T) + A_eTH_MainDet_True[i]*np.cos(phi_T))) + f_Pi_MainDet_True[i] * (A_piL_MainDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_MainDet_True[i]*np.sin(phi_T) + A_piTH_MainDet_True[i]*np.cos(phi_T)))
+     Measured_Asymmetry_MainDet_T_True[i, iteration] = Measured_Asymmetry_MainDet_T_value_True
+
+print(Measured_Asymmetry_PionDet_T.shape, Measured_Asymmetry_PionDet_T_True.shape, Measured_Asymmetry_MainDet_T.shape, Measured_Asymmetry_MainDet_T_True.shape)
