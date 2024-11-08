@@ -1,0 +1,393 @@
+import sys
+sys.path.append('/home/elhamm/projects/def-wdconinc/elhamm/my_venv/lib/python3.11/site-packages')
+
+import math
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from numpy import random
+import arviz as az
+import matplotlib as mpl
+
+# Set 'serif' as the default font family
+#mpl.rcParams['font.family'] = 'serif'
+#mpl.rcParams['font.serif'] = ['Times New Roman'] + mpl.rcParams['font.serif']
+#mpl.rcParams['font.size'] = 10
+
+np.random.seed(101)
+pi = math.pi
+ActualRunTime = 8256 #Hours
+N = 1
+Runtime = int(ActualRunTime) #Hours
+N_L = (int(0.9 * Runtime)) #Hours
+N_T = (int(0.1 * Runtime)) #Hours
+Window_L = ((0.9*Runtime)/(N_L))/N
+Window_T = ((0.1*Runtime)/(N_T))/N
+num_PionDet = 28
+num_MainDet = 84
+Theta_uncertainty = 0.017453292519943295 #1degree
+Phi_uncertainty = 0.017453292519943295   #1degree
+print("N_L =", N_L, "N_T =", N_T, "Window_L=", Window_L, "Window_T=", Window_T)
+
+
+#Rates values from simulations at
+#/home/elhamm/projects/def-wdconinc/elhamm/PionDetectorOptimization/simulation/run/remoll-Updated-July2023/Moller_Asymmetry/MainDet
+#/home/elhamm/projects/def-wdconinc/elhamm/PionDetectorOptimization/simulation/run/remoll-Updated-July2023/Pion_Asymmetry/PionDet
+
+I= 65  # Current (Micro-A [GHz])
+Rate_Mollers_PionDet = 4.0362586*1e9
+Rate_Pions_PionDet = 0.98928794*1e9
+Rates_PionDet = Rate_Pions_PionDet + Rate_Mollers_PionDet
+Total_Rates_PionDet = (Rates_PionDet/(50*28*85))*65
+Uncertainty_L_PionDet = ((1/np.sqrt(Total_Rates_PionDet*Window_L*3600))*1e9)*(91/82)
+Uncertainty_T_PionDet = ((1/np.sqrt(Total_Rates_PionDet*Window_T*3600))*1e9)*(91/82)
+
+Rate_Mollers_MainDet = 7.1074070e+12
+Rate_Pions_MainDet =7.6445978*1e9
+Rates_MainDet = Rate_Pions_MainDet + Rate_Mollers_MainDet
+Total_Rates_MainDet = (Rates_MainDet/(50*84))
+Uncertainty_L_MainDet = ((1/np.sqrt(Total_Rates_MainDet*Window_L*3600))*1e9)*(91/82)
+Uncertainty_T_MainDet = ((1/np.sqrt(Total_Rates_MainDet*Window_T*3600))*1e9)*(91/82)
+
+print(Total_Rates_PionDet, Total_Rates_MainDet, "Uncertainty_L_PionDet=", Uncertainty_L_PionDet, "Uncertainty_L_MainDet=", Uncertainty_L_MainDet, "Uncertainty_T_PionDet=", Uncertainty_T_PionDet, "Uncertainty_T_MainDet=", Uncertainty_T_MainDet)
+
+
+Asymmetry_PionDet_L_Fitted_Mean = pd.read_csv('Asymmetry_PionDet_L_Fitted_mean.csv')
+dAsymmetry_PionDet_L_Fitted_Mean = pd.read_csv('dAsymmetry_PionDet_L_Fitted_mean.csv')
+Asymmetry_MainDet_L_Fitted_Mean = pd.read_csv('Asymmetry_MainDet_L_Fitted_mean.csv')
+dAsymmetry_MainDet_L_Fitted_Mean = pd.read_csv('dAsymmetry_MainDet_L_Fitted_mean.csv')
+
+Asymmetry_PionDet_T_Fitted_Mean = pd.read_csv('Asymmetry_PionDet_T_Fitted_mean.csv')
+dAsymmetry_PionDet_T_Fitted_Mean = pd.read_csv('dAsymmetry_PionDet_T_Fitted_mean.csv')
+Asymmetry_MainDet_T_Fitted_Mean = pd.read_csv('Asymmetry_MainDet_T_Fitted_mean.csv')
+dAsymmetry_MainDet_T_Fitted_Mean = pd.read_csv('dAsymmetry_MainDet_T_Fitted_mean.csv')
+
+Asymmetry_PionDet_L_Mock_Mean = pd.read_csv('Asymmetry_PionDet_L_Mock_mean.csv')
+dAsymmetry_PionDet_L_Mock_Mean = pd.read_csv('dAsymmetry_PionDet_L_Mock_mean.csv')
+Asymmetry_MainDet_L_Mock_Mean = pd.read_csv('Asymmetry_MainDet_L_Mock_mean.csv')
+dAsymmetry_MainDet_L_Mock_Mean = pd.read_csv('dAsymmetry_MainDet_L_Mock_mean.csv')
+Asymmetry_PionDet_T_Mock_Mean = pd.read_csv('Asymmetry_PionDet_T_Mock_mean.csv')
+dAsymmetry_PionDet_T_Mock_Mean = pd.read_csv('dAsymmetry_PionDet_T_Mock_mean.csv')
+Asymmetry_MainDet_T_Mock_Mean = pd.read_csv('Asymmetry_MainDet_T_Mock_mean.csv')
+dAsymmetry_MainDet_T_Mock_Mean = pd.read_csv('dAsymmetry_MainDet_T_Mock_mean.csv')
+
+Asymmetry_PionDet_L_True_Mean = pd.read_csv('Asymmetry_PionDet_L_True_mean.csv')
+dAsymmetry_PionDet_L_True_Mean = pd.read_csv('dAsymmetry_PionDet_L_True_mean.csv')
+Asymmetry_MainDet_L_True_Mean = pd.read_csv('Asymmetry_MainDet_L_True_mean.csv')
+dAsymmetry_MainDet_L_True_Mean = pd.read_csv('dAsymmetry_MainDet_L_True_mean.csv')
+Asymmetry_PionDet_T_True_Mean = pd.read_csv('Asymmetry_PionDet_T_True_mean.csv')
+dAsymmetry_PionDet_T_True_Mean = pd.read_csv('dAsymmetry_PionDet_T_True_mean.csv')
+Asymmetry_MainDet_T_True_Mean = pd.read_csv('Asymmetry_MainDet_T_True_mean.csv')
+dAsymmetry_MainDet_T_True_Mean = pd.read_csv('dAsymmetry_MainDet_T_True_mean.csv')
+
+Asymmetry_PionDet_L_Fitted_mean =[]
+dAsymmetry_PionDet_L_Fitted_mean =[]
+Asymmetry_PionDet_T_Fitted_mean =[]
+dAsymmetry_PionDet_T_Fitted_mean =[]
+
+Asymmetry_PionDet_L_Mock_mean =[]
+dAsymmetry_PionDet_L_Mock_mean =[]
+Asymmetry_PionDet_T_Mock_mean =[]
+dAsymmetry_PionDet_T_Mock_mean =[]
+
+Asymmetry_PionDet_L_True_mean =[]
+dAsymmetry_PionDet_L_True_mean =[]
+Asymmetry_PionDet_T_True_mean =[]
+dAsymmetry_PionDet_T_True_mean =[]
+
+Asymmetry_MainDet_L_Fitted_mean =[]
+dAsymmetry_MainDet_L_Fitted_mean =[]
+Asymmetry_MainDet_T_Fitted_mean =[]
+dAsymmetry_MainDet_T_Fitted_mean =[]
+
+Asymmetry_MainDet_L_Mock_mean =[]
+dAsymmetry_MainDet_L_Mock_mean =[]
+Asymmetry_MainDet_T_Mock_mean =[]
+dAsymmetry_MainDet_T_Mock_mean =[]
+
+Asymmetry_MainDet_L_True_mean =[]
+dAsymmetry_MainDet_L_True_mean =[]
+Asymmetry_MainDet_T_True_mean =[]
+dAsymmetry_MainDet_T_True_mean =[]
+
+for i in range(28):
+    Asymmetry_PionDet_L_Fitted_mean_value = (Asymmetry_PionDet_L_Fitted_Mean.at[i, 'Asymmetry_PionDet_L_Fitted_mean'])
+    Asymmetry_PionDet_L_Fitted_mean.append(Asymmetry_PionDet_L_Fitted_mean_value)
+    dAsymmetry_PionDet_L_Fitted_mean_value = (dAsymmetry_PionDet_L_Fitted_Mean.at[i, 'dAsymmetry_PionDet_L_Fitted_mean'])
+    dAsymmetry_PionDet_L_Fitted_mean.append(dAsymmetry_PionDet_L_Fitted_mean_value)
+
+    Asymmetry_PionDet_T_Fitted_mean_value = (Asymmetry_PionDet_T_Fitted_Mean.at[i, 'Asymmetry_PionDet_T_Fitted_mean'])
+    Asymmetry_PionDet_T_Fitted_mean.append(Asymmetry_PionDet_T_Fitted_mean_value)
+    dAsymmetry_PionDet_T_Fitted_mean_value = (dAsymmetry_PionDet_T_Fitted_Mean.at[i, 'dAsymmetry_PionDet_T_Fitted_mean'])
+    dAsymmetry_PionDet_T_Fitted_mean.append(dAsymmetry_PionDet_T_Fitted_mean_value)
+
+    Asymmetry_PionDet_L_Mock_mean_value = (Asymmetry_PionDet_L_Mock_Mean.at[i, 'Asymmetry_PionDet_L_Mock_mean'])
+    Asymmetry_PionDet_L_Mock_mean.append(Asymmetry_PionDet_L_Mock_mean_value)
+    dAsymmetry_PionDet_L_Mock_mean_value = (dAsymmetry_PionDet_L_Mock_Mean.at[i, 'dAsymmetry_PionDet_L_Mock_mean'])
+    dAsymmetry_PionDet_L_Mock_mean.append(dAsymmetry_PionDet_L_Mock_mean_value)
+
+    Asymmetry_PionDet_T_Mock_mean_value = (Asymmetry_PionDet_T_Mock_Mean.at[i, 'Asymmetry_PionDet_T_Mock_mean'])
+    Asymmetry_PionDet_T_Mock_mean.append(Asymmetry_PionDet_T_Mock_mean_value)
+    dAsymmetry_PionDet_T_Mock_mean_value = (dAsymmetry_PionDet_T_Mock_Mean.at[i, 'dAsymmetry_PionDet_T_Mock_mean'])
+    dAsymmetry_PionDet_T_Mock_mean.append(dAsymmetry_PionDet_T_Mock_mean_value)
+
+    Asymmetry_PionDet_L_True_mean_value = (Asymmetry_PionDet_L_True_Mean.at[i, 'Asymmetry_PionDet_L_True_mean'])
+    Asymmetry_PionDet_L_True_mean.append(Asymmetry_PionDet_L_True_mean_value)
+    dAsymmetry_PionDet_L_True_mean_value = (dAsymmetry_PionDet_L_True_Mean.at[i, 'dAsymmetry_PionDet_L_True_mean'])
+    dAsymmetry_PionDet_L_True_mean.append(dAsymmetry_PionDet_L_True_mean_value)
+
+    Asymmetry_PionDet_T_True_mean_value = (Asymmetry_PionDet_T_True_Mean.at[i, 'Asymmetry_PionDet_T_True_mean'])
+    Asymmetry_PionDet_T_True_mean.append(Asymmetry_PionDet_T_True_mean_value)
+    dAsymmetry_PionDet_T_True_mean_value = (dAsymmetry_PionDet_T_True_Mean.at[i, 'dAsymmetry_PionDet_T_True_mean'])
+    dAsymmetry_PionDet_T_True_mean.append(dAsymmetry_PionDet_T_True_mean_value)
+
+for i in range(84):
+    Asymmetry_MainDet_L_Fitted_mean_value = (Asymmetry_MainDet_L_Fitted_Mean.at[i, 'Asymmetry_MainDet_L_Fitted_mean'])
+    Asymmetry_MainDet_L_Fitted_mean.append(Asymmetry_MainDet_L_Fitted_mean_value)
+    dAsymmetry_MainDet_L_Fitted_mean_value = (dAsymmetry_MainDet_L_Fitted_Mean.at[i, 'dAsymmetry_MainDet_L_Fitted_mean'])
+    dAsymmetry_MainDet_L_Fitted_mean.append(dAsymmetry_MainDet_L_Fitted_mean_value)
+
+    Asymmetry_MainDet_T_Fitted_mean_value = (Asymmetry_MainDet_T_Fitted_Mean.at[i, 'Asymmetry_MainDet_T_Fitted_mean'])
+    Asymmetry_MainDet_T_Fitted_mean.append(Asymmetry_MainDet_T_Fitted_mean_value)
+    dAsymmetry_MainDet_T_Fitted_mean_value = (dAsymmetry_MainDet_T_Fitted_Mean.at[i, 'dAsymmetry_MainDet_T_Fitted_mean'])
+    dAsymmetry_MainDet_T_Fitted_mean.append(dAsymmetry_MainDet_T_Fitted_mean_value)
+
+    Asymmetry_MainDet_L_Mock_mean_value = (Asymmetry_MainDet_L_Mock_Mean.at[i, 'Asymmetry_MainDet_L_Mock_mean'])
+    Asymmetry_MainDet_L_Mock_mean.append(Asymmetry_MainDet_L_Mock_mean_value)
+    dAsymmetry_MainDet_L_Mock_mean_value = (dAsymmetry_MainDet_L_Mock_Mean.at[i, 'dAsymmetry_MainDet_L_Mock_mean'])
+    dAsymmetry_MainDet_L_Mock_mean.append(dAsymmetry_MainDet_L_Mock_mean_value)
+
+    Asymmetry_MainDet_T_Mock_mean_value = (Asymmetry_MainDet_T_Mock_Mean.at[i, 'Asymmetry_MainDet_T_Mock_mean'])
+    Asymmetry_MainDet_T_Mock_mean.append(Asymmetry_MainDet_T_Mock_mean_value)
+    dAsymmetry_MainDet_T_Mock_mean_value = (dAsymmetry_MainDet_T_Mock_Mean.at[i, 'dAsymmetry_MainDet_T_Mock_mean'])
+    dAsymmetry_MainDet_T_Mock_mean.append(dAsymmetry_MainDet_T_Mock_mean_value)
+
+    Asymmetry_MainDet_L_True_mean_value = (Asymmetry_MainDet_L_True_Mean.at[i, 'Asymmetry_MainDet_L_True_mean'])
+    Asymmetry_MainDet_L_True_mean.append(Asymmetry_MainDet_L_True_mean_value)
+    dAsymmetry_MainDet_L_True_mean_value = (dAsymmetry_MainDet_L_True_Mean.at[i, 'dAsymmetry_MainDet_L_True_mean'])
+    dAsymmetry_MainDet_L_True_mean.append(dAsymmetry_MainDet_L_True_mean_value)
+
+    Asymmetry_MainDet_T_True_mean_value = (Asymmetry_MainDet_T_True_Mean.at[i, 'Asymmetry_MainDet_T_True_mean'])
+    Asymmetry_MainDet_T_True_mean.append(Asymmetry_MainDet_T_True_mean_value)
+    dAsymmetry_MainDet_T_True_mean_value = (dAsymmetry_MainDet_T_True_Mean.at[i, 'dAsymmetry_MainDet_T_True_mean'])
+    dAsymmetry_MainDet_T_True_mean.append(dAsymmetry_MainDet_T_True_mean_value)
+
+Asymmetry_PionDet_L_Fitted_mean = np.array(Asymmetry_PionDet_L_Fitted_mean)
+Asymmetry_PionDet_L_Mock_mean = np.array(Asymmetry_PionDet_L_Mock_mean)
+Asymmetry_PionDet_L_True_mean = np.array(Asymmetry_PionDet_L_True_mean)
+dAsymmetry_PionDet_L_Fitted_mean = np.array(dAsymmetry_PionDet_L_Fitted_mean)
+dAsymmetry_PionDet_L_True_mean = np.array(dAsymmetry_PionDet_L_True_mean)
+dAsymmetry_PionDet_L_Mock_mean = np.array(dAsymmetry_PionDet_L_Mock_mean)
+DetNo = list(range(1, 29))
+
+Asymmetry_PionDet_L_Fitted_mean = np.array(Asymmetry_PionDet_L_Fitted_mean)
+Asymmetry_PionDet_L_Mock_mean = np.array(Asymmetry_PionDet_L_Mock_mean)
+Asymmetry_PionDet_L_True_mean = np.array(Asymmetry_PionDet_L_True_mean)
+dAsymmetry_PionDet_L_Fitted_mean = np.array(dAsymmetry_PionDet_L_Fitted_mean)
+dAsymmetry_PionDet_L_True_mean = np.array(dAsymmetry_PionDet_L_True_mean)
+dAsymmetry_PionDet_L_Mock_mean = np.array(dAsymmetry_PionDet_L_Mock_mean)
+DetNo = list(range(1, 29))
+
+pull_values_Measured_True = (Asymmetry_PionDet_L_True_mean - Asymmetry_PionDet_L_Mock_mean) / (dAsymmetry_PionDet_L_Mock_mean / np.sqrt(N_L))
+# Create a figure and a set of subplots with adjusted grid specs
+fig, axs = plt.subplots(2, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [3, 1], 'height_ratios': [3, 1]})
+
+# Adjusting DetNo values for offset
+offset = 0.18  # Change this value as needed for desired separation
+DetNo_green = [x + offset for x in DetNo]  # Offset for green points
+DetNo_blue = [x - offset for x in DetNo]  # Offset for blue points
+
+# Main plot on the first row, first column
+ax1 = axs[0, 0]
+ax1.plot(DetNo_green, Asymmetry_PionDet_L_True_mean, 'd', color='green', markersize=6, label='True Asymmetry')
+ax1.plot(DetNo_blue, Asymmetry_PionDet_L_Mock_mean, 's', color='blue', markersize=6, label='Mock Asymmetry Average')
+ax1.fill_between(DetNo, Asymmetry_PionDet_L_Mock_mean - dAsymmetry_PionDet_L_Mock_mean, Asymmetry_PionDet_L_Mock_mean + dAsymmetry_PionDet_L_Mock_mean, color='blue', alpha=0.2, label='Mock Asymmetry Uncertainty\n(Per Measurement)')
+ax1.set_ylabel('Asymmetry (ppb)', fontsize=12)
+ax1.set_title('True Asymmetry and Mock Asymmetry Average (Pion Detector - Longitudinal DataSet)', fontsize=12)
+ax1.legend(fontsize=10, loc='upper right')
+ax1.grid(False)
+
+# Pull plot for pull_values_Measured_True
+ax_pull = axs[1, 0]
+ax_pull.plot(DetNo, pull_values_Measured_True, 'o', color='green', markersize=5.5)
+ax_pull.axhline(0, color='black', linewidth=0.5)
+ax_pull.set_xlabel('Detector Number', fontsize=12)
+ax_pull.set_ylabel('Normalized Residual', fontsize=12)
+ax_pull.set_title('Normalized Residual (True-Mock)', fontsize=12)
+ax_pull.grid(False)
+
+# Histogram of pull_values_Measured_True
+ax_hist = axs[1, 1]
+counts, bins, patches = ax_hist.hist(pull_values_Measured_True, bins=28, color='green', alpha=0.7)
+mean_value = np.mean(pull_values_Measured_True)
+rms_value = np.sqrt(np.mean(np.square(pull_values_Measured_True - mean_value)))
+ax_hist.set_title('Histogram of Normalized Residual', fontsize=12)
+ax_hist.set_xlabel('Normalized Residual', fontsize=12)
+ax_hist.set_ylabel('Frequency', fontsize=12)
+ax_hist.legend([f'Mean: {mean_value:.2f}\nRMS: {rms_value:.2f}'], fontsize=10, handlelength=0, loc='upper right')
+ax_hist.grid(False)
+
+# Adjust the layout
+plt.tight_layout()
+plt.savefig('PionDet_L_TrueVsMock.png')
+
+# Assuming the arrays are defined
+Asymmetry_PionDet_T_Fitted_mean = np.array(Asymmetry_PionDet_T_Fitted_mean)
+Asymmetry_PionDet_T_Mock_mean = np.array(Asymmetry_PionDet_T_Mock_mean)
+Asymmetry_PionDet_T_True_mean = np.array(Asymmetry_PionDet_T_True_mean)
+dAsymmetry_PionDet_T_Fitted_mean = np.array(dAsymmetry_PionDet_T_Fitted_mean)
+dAsymmetry_PionDet_T_True_mean = np.array(dAsymmetry_PionDet_T_True_mean)
+dAsymmetry_PionDet_T_Mock_mean = np.array(dAsymmetry_PionDet_T_Mock_mean)
+DetNo = list(range(1, 29))
+
+# Calculate pull values
+pull_values_Measured_True = (Asymmetry_PionDet_T_True_mean - Asymmetry_PionDet_T_Mock_mean) / (dAsymmetry_PionDet_T_Mock_mean / np.sqrt(N_T))
+
+# Create a figure and a set of subplots with adjusted grid specs
+fig, axs = plt.subplots(2, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [3, 1], 'height_ratios': [3, 1]})
+
+# Adjusting DetNo values for offset
+offset = 0.18  # Change this value as needed for desired separation
+DetNo_green = [x + offset for x in DetNo]  # Offset for green points
+DetNo_blue = [x - offset for x in DetNo]  # Offset for blue points
+
+# Main plot on the first row, first column
+ax1 = axs[0, 0]
+ax1.plot(DetNo_green, Asymmetry_PionDet_T_True_mean, 'd', color='green', markersize=6, label='True Asymmetry')
+ax1.plot(DetNo_blue, Asymmetry_PionDet_T_Mock_mean, 's', color='blue', markersize=6, label='Mock Asymmetry Average')
+ax1.fill_between(DetNo, Asymmetry_PionDet_T_Mock_mean - dAsymmetry_PionDet_T_Mock_mean, Asymmetry_PionDet_T_Mock_mean + dAsymmetry_PionDet_T_Mock_mean, color='blue', alpha=0.2, label='Mock Asymmetry Uncertainty\n(Per Measurement)')
+ax1.set_ylabel('Asymmetry (ppb)', fontsize=12)
+ax1.set_title('True Asymmetry and Mock Asymmetry Average (Pion Detector - Transverse DataSet)', fontsize=12)
+ax1.legend(fontsize=8, loc='upper right')
+ax1.grid(False)
+
+# Pull plot for pull_values_Measured_True
+ax_pull = axs[1, 0]
+ax_pull.plot(DetNo, pull_values_Measured_True, 'o', color='green', markersize=5.5)
+ax_pull.axhline(0, color='black', linewidth=0.5)
+ax_pull.set_xlabel('Detector Number', fontsize=12)
+ax_pull.set_ylabel('Normalized Residual', fontsize=12)
+ax_pull.set_title('Normalized Residual (True-Mock)', fontsize=12)
+ax_pull.grid(False)
+
+# Histogram of pull_values_Measured_True
+ax_hist = axs[1, 1]
+counts, bins, patches = ax_hist.hist(pull_values_Measured_True, bins=28, color='green', alpha=0.7)
+mean_value = np.mean(pull_values_Measured_True)
+rms_value = np.sqrt(np.mean(np.square(pull_values_Measured_True - mean_value)))
+ax_hist.set_title('Histogram of Normalized Residual', fontsize=12)
+ax_hist.set_xlabel('Normalized Residual', fontsize=12)
+ax_hist.set_ylabel('Frequency', fontsize=12)
+ax_hist.legend([f'Mean: {mean_value:.2f}\nRMS: {rms_value:.2f}'], fontsize=10, handlelength=0, loc='upper right')
+ax_hist.grid(False)
+
+# Adjust the layout
+plt.tight_layout()
+plt.savefig('PionDet_T_TrueVsMock.png')
+
+
+Asymmetry_MainDet_L_Fitted_mean = np.array(Asymmetry_MainDet_L_Fitted_mean)
+Asymmetry_MainDet_L_Mock_mean = np.array(Asymmetry_MainDet_L_Mock_mean)
+Asymmetry_MainDet_L_True_mean = np.array(Asymmetry_MainDet_L_True_mean)
+dAsymmetry_MainDet_L_Fitted_mean = np.array(dAsymmetry_MainDet_L_Fitted_mean)
+dAsymmetry_MainDet_L_True_mean = np.array(dAsymmetry_MainDet_L_True_mean)
+dAsymmetry_MainDet_L_Mock_mean = np.array(dAsymmetry_MainDet_L_Mock_mean)
+DetNo = list(range(1, 85))
+
+pull_values_Measured_True = (Asymmetry_MainDet_L_True_mean - Asymmetry_MainDet_L_Mock_mean) / (dAsymmetry_MainDet_L_Mock_mean / np.sqrt(N_L))
+# Create a figure and a set of subplots with adjusted grid specs
+fig, axs = plt.subplots(2, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [3, 1], 'height_ratios': [3, 1]})
+
+# Adjusting DetNo values for offset
+offset = 0.4  # Change this value as needed for desired separation
+DetNo_green = [x + offset for x in DetNo]  # Offset for green points
+DetNo_blue = [x - offset for x in DetNo]  # Offset for blue points
+
+# Main plot on the first row, first column
+ax1 = axs[0, 0]
+ax1.plot(DetNo_green, Asymmetry_MainDet_L_True_mean, 'd', color='green', markersize=6, label='True Asymmetry')
+ax1.plot(DetNo_blue, Asymmetry_MainDet_L_Mock_mean, 's', color='blue', markersize=6, label='Mock Asymmetry Average')
+ax1.fill_between(DetNo, Asymmetry_MainDet_L_Mock_mean - dAsymmetry_MainDet_L_Mock_mean, Asymmetry_MainDet_L_Mock_mean + dAsymmetry_MainDet_L_Mock_mean, color='blue', alpha=0.2, label='Mock Asymmetry Uncertainty\n(Per Measurement)')
+ax1.set_ylabel('Asymmetry (ppb)', fontsize=12)
+ax1.set_title('True Asymmetry and Mock Asymmetry Average (Main Detector - Longitudinal DataSet)', fontsize=12)
+ax1.legend(fontsize=10, loc='upper right')
+ax1.grid(False)
+
+# Pull plot for pull_values_Measured_True
+ax_pull = axs[1, 0]
+ax_pull.plot(DetNo, pull_values_Measured_True, 'o', color='green', markersize=5.5)
+ax_pull.axhline(0, color='black', linewidth=0.5)
+ax_pull.set_xlabel('Detector Number', fontsize=12)
+ax_pull.set_ylabel('Normalized Residual', fontsize=12)
+ax_pull.set_title('Normalized Residual (True-Mock)', fontsize=12)
+ax_pull.grid(False)
+
+# Histogram of pull_values_Measured_True
+ax_hist = axs[1, 1]
+counts, bins, patches = ax_hist.hist(pull_values_Measured_True, bins=28, color='green', alpha=0.7)
+mean_value = np.mean(pull_values_Measured_True)
+rms_value = np.sqrt(np.mean(np.square(pull_values_Measured_True - mean_value)))
+ax_hist.set_title('Histogram of Normalized Residual', fontsize=12)
+ax_hist.set_xlabel('Normalized Residual', fontsize=12)
+ax_hist.set_ylabel('Frequency', fontsize=12)
+ax_hist.legend([f'Mean: {mean_value:.2f}\nRMS: {rms_value:.2f}'], fontsize=10, handlelength=0, loc='upper right')
+ax_hist.grid(False)
+
+# Adjust the layout
+plt.tight_layout()
+plt.savefig('MainDet_L_TrueVsMock.png')
+
+# Assuming the arrays are defined
+Asymmetry_MainDet_T_Fitted_mean = np.array(Asymmetry_MainDet_T_Fitted_mean)
+Asymmetry_MainDet_T_Mock_mean = np.array(Asymmetry_MainDet_T_Mock_mean)
+Asymmetry_MainDet_T_True_mean = np.array(Asymmetry_MainDet_T_True_mean)
+dAsymmetry_MainDet_T_Fitted_mean = np.array(dAsymmetry_MainDet_T_Fitted_mean)
+dAsymmetry_MainDet_T_True_mean = np.array(dAsymmetry_MainDet_T_True_mean)
+dAsymmetry_MainDet_T_Mock_mean = np.array(dAsymmetry_MainDet_T_Mock_mean)
+DetNo = list(range(1, 85))
+
+# Calculate pull values
+pull_values_Measured_True = (Asymmetry_MainDet_T_True_mean - Asymmetry_MainDet_T_Mock_mean) / (dAsymmetry_MainDet_T_Mock_mean / np.sqrt(N_T))
+
+# Create a figure and a set of subplots with adjusted grid specs
+fig, axs = plt.subplots(2, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [3, 1], 'height_ratios': [3, 1]})
+
+# Adjusting DetNo values for offset
+offset = 0.57  # Change this value as needed for desired separation
+DetNo_green = [x + offset for x in DetNo]  # Offset for green points
+DetNo_blue = [x - offset for x in DetNo]  # Offset for blue points
+
+# Main plot on the first row, first column
+ax1 = axs[0, 0]
+ax1.plot(DetNo_green, Asymmetry_MainDet_T_True_mean, 'd', color='green', markersize=6, label='True Asymmetry')
+ax1.plot(DetNo_blue, Asymmetry_MainDet_T_Mock_mean, 's', color='blue', markersize=6, label='Mock Asymmetry Average')
+ax1.fill_between(DetNo, Asymmetry_MainDet_T_Mock_mean - dAsymmetry_MainDet_T_Mock_mean, Asymmetry_MainDet_T_Mock_mean + dAsymmetry_MainDet_T_Mock_mean, color='blue', alpha=0.2, label='Mock Asymmetry Uncertainty\n(Per Measurement)')
+ax1.set_ylabel('Asymmetry (ppb)', fontsize=12)
+ax1.set_title('True Asymmetry and Mock Asymmetry Average (Main Detector - Transverse DataSet)', fontsize=12)
+ax1.legend(fontsize=10, loc='upper right')
+ax1.grid(False)
+
+# Pull plot for pull_values_Measured_True
+ax_pull = axs[1, 0]
+ax_pull.plot(DetNo, pull_values_Measured_True, 'o', color='green', markersize=5.5)
+ax_pull.axhline(0, color='black', linewidth=0.5)
+ax_pull.set_xlabel('Detector Number', fontsize=12)
+ax_pull.set_ylabel('Normalized Residual', fontsize=12)
+ax_pull.set_title('Normalized Residual (True-Mock)', fontsize=12)
+ax_pull.grid(False)
+
+# Histogram of pull_values_Measured_True
+ax_hist = axs[1, 1]
+counts, bins, patches = ax_hist.hist(pull_values_Measured_True, bins=28, color='green', alpha=0.7)
+mean_value = np.mean(pull_values_Measured_True)
+rms_value = np.sqrt(np.mean(np.square(pull_values_Measured_True - mean_value)))
+ax_hist.set_title('Histogram of Normalized Residual', fontsize=12)
+ax_hist.set_xlabel('Normalized Residual', fontsize=12)
+ax_hist.set_ylabel('Frequency', fontsize=12)
+ax_hist.legend([f'Mean: {mean_value:.2f}\nRMS: {rms_value:.2f}'], fontsize=10, handlelength=0, loc='upper right')
+ax_hist.grid(False)
+
+# Adjust the layout
+plt.tight_layout()
+plt.savefig('MainDet_T_TrueVsMock.png')
