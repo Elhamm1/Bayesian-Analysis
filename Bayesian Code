@@ -1,8 +1,9 @@
-pip install pystan
+import sys
+sys.path.append('/home/elhamm/projects/def-wdconinc/elhamm/my_venv/lib/python3.11/site-packages')
+
 import math
 import numpy as np
 import pandas as pd
-import stan
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import beta
@@ -11,7 +12,9 @@ from scipy.stats import norm
 import nest_asyncio
 import arviz as az
 from numpy.core.shape_base import vstack
+import pystan
 
+#**************************************************************************************************************************************************
 sns.set_style("whitegrid")  # Set the style directly using seaborn
 #sns.set(font="Times New Roman")  # Set the font using seaborn
 
@@ -19,93 +22,112 @@ plt.rc('axes', labelsize=16)
 plt.rc('axes', titlesize=16)
 plt.rc('figure', titlesize=20)
 
-np.random.seed(101)
+#**************************************************************************************************************************************************
+seeds = np.random.seed(401)
 pi = math.pi
-ActualRunTime = 8256*3600
-Runtime = 1000
-N_L = int(0.9 * Runtime)
-N_T = int(0.1 * Runtime)
+ActualRunTime = 8256 #Hours
+Runtime = int(ActualRunTime) #Hours
+N_L = (int(0.9 * Runtime)) #Hours
+N_T = (int(0.1 * Runtime)) #Hours
+Window_L = ((0.9*Runtime)/(N_L))
+Window_T = ((0.1*Runtime)/(N_T))
 num_PionDet = 28
 num_MainDet = 84
 Theta_uncertainty = 0.017453292519943295 #1degree
-Phi_uncertainty = 0.017453292519943295   #1degree
+Phi_uncertainty = 0.017453292519943295  #1degree
+print("N_L =", N_L, "N_T =", N_T, "Window_L=", Window_L, "Window_T=", Window_T)
 
+#**************************************************************************************************************************************************
 #Rates values from simulations at
 #/home/elhamm/projects/def-wdconinc/elhamm/PionDetectorOptimization/simulation/run/remoll-Updated-July2023/Moller_Asymmetry/MainDet
 #/home/elhamm/projects/def-wdconinc/elhamm/PionDetectorOptimization/simulation/run/remoll-Updated-July2023/Pion_Asymmetry/PionDet
 
-I_Pion = 65  # Current (Micro-A [GHz])
-#Rate_Mollers_PionDet = 3.5428*1e6
-Rate_Mollers_PionDet = 8.54726*1e9
-#Rate_Pions_PionDet = 1.71955*1e5
-Rate_Pions_PionDet = 9.22396*1e10
+I= 65  # Current (Micro-A [GHz])
+Rate_Mollers_PionDet = 4.0362586*1e9
+Rate_Pions_PionDet = 0.98928794*1e9
 Rates_PionDet = Rate_Pions_PionDet + Rate_Mollers_PionDet
-Total_Rates_PionDet = (Rates_PionDet/(50*85*28))*65
-Uncertainty_total_PionDet= ((1/np.sqrt(Total_Rates_PionDet*1e-3*(Runtime)))*1e9)*(91/82)
-Uncertainty_L_PionDet = ((1/np.sqrt(Total_Rates_PionDet*1e-3*Runtime*0.9))*1e9)*(91/82)
-Uncertainty_T_PionDet = ((1/np.sqrt(Total_Rates_PionDet*1e-3*Runtime*0.1))*1e9)*(91/82)
+Total_Rates_PionDet = (Rates_PionDet/(50*28*85))*65
+Uncertainty_L_PionDet = ((1/np.sqrt(Total_Rates_PionDet*Window_L*3600))*1e9)*(91/82)
+Uncertainty_T_PionDet = ((1/np.sqrt(Total_Rates_PionDet*Window_T*3600))*1e9)*(91/82)
 
-#Rate_Mollers_MainDet = 2.77266*1e8
-Rate_Mollers_MainDet = 1.3573441*1e14
-#Rate_Pions_MainDet = 2.27860*1e6
-Rate_Pions_MainDet =1.1465975*1e11
+Rate_Mollers_MainDet = 7.1074070e+12
+Rate_Pions_MainDet =7.6445978*1e9
 Rates_MainDet = Rate_Pions_MainDet + Rate_Mollers_MainDet
 Total_Rates_MainDet = (Rates_MainDet/(50*84))
-Uncertainty_total_MainDet= ((1/np.sqrt(Total_Rates_MainDet*1e-3*Runtime))*1e9)*(91/82)
-Uncertainty_L_MainDet = ((1/np.sqrt(Total_Rates_MainDet*1e-3*Runtime*0.9))*1e9)*(91/82)
-Uncertainty_T_MainDet = ((1/np.sqrt(Total_Rates_MainDet*1e-3*Runtime*0.1))*1e9)*(91/82)
+Uncertainty_L_MainDet = ((1/np.sqrt(Total_Rates_MainDet*Window_L*3600))*1e9)*(91/82)
+Uncertainty_T_MainDet = ((1/np.sqrt(Total_Rates_MainDet*Window_T*3600))*1e9)*(91/82)
 
-print(Total_Rates_PionDet, Total_Rates_MainDet, "Uncertainty_L_PionDet=", Uncertainty_L_PionDet, "Uncertainty_L_MainDet=", Uncertainty_L_MainDet, "Uncertainty_T_PionDet=", Uncertainty_T_PionDet, "Uncertainty_T_MainDet=", Uncertainty_T_MainDet, "Uncertainty_total_PionDet=",Uncertainty_total_PionDet, "Uncertainty_total_MainDet=", Uncertainty_total_MainDet)
-Pion_Asy_L_PionDet = pd.read_csv('Pion_Asymmetry_Longitudinal_PionDet.csv')
-Pion_Asy_TV_PionDet = pd.read_csv('Pion_Asymmetry_Transverse_Vertical_PionDet.csv')
-Pion_Asy_TH_PionDet = pd.read_csv('Pion_Asymmetry_Transverse_Horizontal_PionDet.csv')
+print("Total_Rates_PionDet=", Total_Rates_PionDet, "Total_Rates_MainDet=", Total_Rates_MainDet, "Uncertainty_L_PionDet=", Uncertainty_L_PionDet, "Uncertainty_L_MainDet=", Uncertainty_L_MainDet, "Uncertainty_T_PionDet=", Uncertainty_T_PionDet, "Uncertainty_T_MainDet=", Uncertainty_T_MainDet)
 
-Pion_Asy_L_MainDet = pd.read_csv('Pion_Asymmetry-longitudinal-MainDet-Ring5.csv')
-Pion_Asy_TV_MainDet = pd.read_csv('Pion_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
-Pion_Asy_TH_MainDet = pd.read_csv('Pion_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+#**************************************************************************************************************************************************
+Pion_Asy_L_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Pion_Asymmetry_Longitudinal_PionDet.csv')
+Pion_Asy_TV_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Pion_Asymmetry_Transverse_Vertical_PionDet.csv')
+Pion_Asy_TH_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Pion_Asymmetry_Transverse_Horizontal_PionDet.csv')
 
-Moller_Asy_L_PionDet = pd.read_csv('Moller_Asymmetry_Longitudinal_PionDet.csv')
-Moller_Asy_TV_PionDet = pd.read_csv('Moller_Asymmetry-transverse-vertical-PionDet.csv')
-Moller_Asy_TH_PionDet = pd.read_csv('Moller_Asymmetry-transverse-horizontal-PionDet.csv')
+Pion_Asy_L_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Pion_Asymmetry-longitudinal-MainDet-Ring5.csv')
+Pion_Asy_TV_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Pion_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Pion_Asy_TH_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Pion_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
 
-Moller_Asy_L_MainDet = pd.read_csv('Moller_Asymmetry-longitudinal-MainDet-Ring5.csv')
-Moller_Asy_TV_MainDet = pd.read_csv('Moller_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
-Moller_Asy_TH_MainDet = pd.read_csv('Moller_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+Moller_Asy_L_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Moller_Asymmetry_Longitudinal_PionDet.csv')
+Moller_Asy_TV_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Moller_Asymmetry-transverse-vertical-PionDet.csv')
+Moller_Asy_TH_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Moller_Asymmetry-transverse-horizontal-PionDet.csv')
 
-Dilution_Factor_PionDet = pd.read_csv('Dilution Factor_PionDet.csv')
-Dilution_Factor_MainDet = pd.read_csv('Dilution Factor_MainDet.csv')
+Moller_Asy_L_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Moller_Asymmetry-longitudinal-MainDet-Ring5.csv')
+Moller_Asy_TV_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Moller_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Moller_Asy_TH_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Moller_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
 
-Normalized_Moller_Asy_TV_PionDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-vertical-PionDet.csv')
-Normalized_Moller_Asy_TH_PionDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-horizontal-PionDet.csv')
-Normalized_Pion_Asy_TV_PionDet = pd.read_csv('Normalized_Pion_Asymmetry_Transverse_Vertical_PionDet.csv')
-Normalized_Pion_Asy_TH_PionDet = pd.read_csv('Normalized_Pion_Asymmetry_Transverse_Horizontal_PionDet.csv')
+Dilution_Factor_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Dilution Factor_PionDet.csv')
+Dilution_Factor_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Dilution Factor_MainDet.csv')
 
-Normalized_Moller_Asy_TV_MainDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
-Normalized_Moller_Asy_TH_MainDet = pd.read_csv('Normalized_Moller_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
-Normalized_Pion_Asy_TV_MainDet = pd.read_csv('Normalized_Pion_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
-Normalized_Pion_Asy_TH_MainDet = pd.read_csv('Normalized_Pion_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+Normalized_Pion_Asy_L_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Pion_Asymmetry_Longitudinal_PionDet.csv')
+Normalized_Pion_Asy_L_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Pion_Asymmetry-longitudinal-MainDet-Ring5.csv')
+Normalized_Moller_Asy_L_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Moller_Asymmetry_Longitudinal_PionDet.csv')
+Normalized_Moller_Asy_L_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Moller_Asymmetry-longitudinal-MainDet-Ring5.csv')
 
+Normalized_Moller_Asy_TV_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Moller_Asymmetry-transverse-vertical-PionDet.csv')
+Normalized_Moller_Asy_TH_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Moller_Asymmetry-transverse-horizontal-PionDet.csv')
+Normalized_Pion_Asy_TV_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Pion_Asymmetry_Transverse_Vertical_PionDet.csv')
+Normalized_Pion_Asy_TH_PionDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Pion_Asymmetry_Transverse_Horizontal_PionDet.csv')
+
+Normalized_Moller_Asy_TV_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Moller_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Normalized_Moller_Asy_TH_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Moller_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
+Normalized_Pion_Asy_TV_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Pion_Asymmetry-transverse-vertical-MainDet-Ring5.csv')
+Normalized_Pion_Asy_TH_MainDet = pd.read_csv('/lustre06/project/6041615/elhamm/AsymmetryExtraction/Moller/Normalized_Pion_Asymmetry-transverse-horizontal-MainDet-Ring5.csv')
 
 # Convert columns to numpy arrays
+Data_A_eL_PionDet = Normalized_Moller_Asy_L_PionDet.Normalized_Moller_Asymmetry
 Data_A_eT_V_PionDet = Normalized_Moller_Asy_TV_PionDet.Normalized_Moller_Asymmetry
 Data_A_eT_H_PionDet = Normalized_Moller_Asy_TH_PionDet.Normalized_Moller_Asymmetry
+
+Data_A_piL_PionDet = Normalized_Pion_Asy_L_PionDet.Normalized_Pion_Asymmetry
 Data_A_piT_V_PionDet = Normalized_Pion_Asy_TV_PionDet.Normalized_Pion_Asymmetry
 Data_A_piT_H_PionDet = Normalized_Pion_Asy_TH_PionDet.Normalized_Pion_Asymmetry
 
+Data_A_eL_MainDet = Normalized_Moller_Asy_L_MainDet.Normalized_Moller_Asymmetry
 Data_A_eT_V_MainDet = Normalized_Moller_Asy_TV_MainDet.Normalized_Moller_Asymmetry
 Data_A_eT_H_MainDet = Normalized_Moller_Asy_TH_MainDet.Normalized_Moller_Asymmetry
+
+Data_A_piL_MainDet = Normalized_Pion_Asy_L_MainDet.Normalized_Pion_Asymmetry
 Data_A_piT_V_MainDet = Normalized_Pion_Asy_TV_MainDet.Normalized_Pion_Asymmetry
 Data_A_piT_H_MainDet = Normalized_Pion_Asy_TH_MainDet.Normalized_Pion_Asymmetry
-#print(Measured_Asymmetry, Measured_Asymmetry.shape)
 
-#print(Dilution_Factor_MainDet)
-
+#**************************************************************************************************************************************************
 #Generating Mock Data - Longitudinal
+
 Measured_Asymmetry_PionDet_L = np.zeros((num_PionDet, N_L))
 Measured_Asymmetry_MainDet_L = np.zeros((num_MainDet, N_L))
 
 Measured_Asymmetry_PionDet_L_True = np.zeros((num_PionDet, N_L))
 Measured_Asymmetry_MainDet_L_True = np.zeros((num_MainDet, N_L))
+
+partial_f_Pi_PionDet_L_True = np.zeros((num_PionDet, N_L))
+partial_theta_L_PionDet_True = np.zeros((num_PionDet, N_L))
+partial_phi_L_PionDet_True = np.zeros((num_PionDet, N_L))
+dMeasured_Asymmetry_PionDet_L_True = np.zeros((num_PionDet, N_L))
+
+#Choose one theta and phi for the whole run
+theta_L = np.random.normal(0, Theta_uncertainty)
+phi_L = np.random.normal(0, pi)
 
 for iteration in range(N_L):
   Pion_Asymmetry_L_PionDet = []
@@ -116,6 +138,7 @@ for iteration in range(N_L):
   Moller_Asymmetry_TV_PionDet = []
   Moller_Asymmetry_TH_PionDet =[]
   f_Pi_PionDet = []
+  df_Pi_PionDet = []
 
   Pion_Asymmetry_L_MainDet = []
   Moller_Asymmetry_L_MainDet = []
@@ -125,56 +148,25 @@ for iteration in range(N_L):
   Moller_Asymmetry_TV_MainDet = []
   Moller_Asymmetry_TH_MainDet =[]
   f_Pi_MainDet = []
-
-  Pion_Asymmetry_L_PionDet_True = []
-  Moller_Asymmetry_L_PionDet_True = []
-  Pion_Asymmetry_TV_PionDet_True = []
-  Pion_Asymmetry_TH_PionDet_True =[]
-  Moller_Asymmetry_TV_PionDet_True = []
-  Moller_Asymmetry_TH_PionDet_True =[]
-  Measured_f_Pi_PionDet_True = []
-
-  Pion_Asymmetry_L_MainDet_True = []
-  Moller_Asymmetry_L_MainDet_True = []
-  Pion_Asymmetry_TV_MainDet_True = []
-  Pion_Asymmetry_TH_MainDet_True =[]
-  Moller_Asymmetry_TV_MainDet_True = []
-  Moller_Asymmetry_TH_MainDet_True =[]
-  Measured_f_Pi_MainDet_True = []
-
-  theta_L = np.random.normal(0, Theta_uncertainty)
-  phi_L = np.random.normal(0, pi)
+  df_Pi_MainDet = []
 
   for i in range(num_PionDet):
-     Pion_Asymmetry_L_PionDet_value = np.random.normal(Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_PionDet)
+     Pion_Asymmetry_L_PionDet_value = (Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_L_PionDet.append(Pion_Asymmetry_L_PionDet_value)
-     Moller_Asymmetry_L_PionDet_value = np.random.normal(Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_PionDet)
+     Moller_Asymmetry_L_PionDet_value = (Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'])
      Moller_Asymmetry_L_PionDet.append(Moller_Asymmetry_L_PionDet_value)
-     Pion_Asymmetry_TV_PionDet_value = np.random.normal(Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_PionDet)
+     Pion_Asymmetry_TV_PionDet_value = (Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_TV_PionDet.append(Pion_Asymmetry_TV_PionDet_value)
-     Pion_Asymmetry_TH_PionDet_value = np.random.normal(Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_PionDet)
+     Pion_Asymmetry_TH_PionDet_value = (Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_TH_PionDet.append(Pion_Asymmetry_TH_PionDet_value)
-     Moller_Asymmetry_TV_PionDet_value = np.random.normal(Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_PionDet)
+     Moller_Asymmetry_TV_PionDet_value = (Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'])
      Moller_Asymmetry_TV_PionDet.append(Moller_Asymmetry_TV_PionDet_value)
-     Moller_Asymmetry_TH_PionDet_value = np.random.normal(Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_PionDet)
+     Moller_Asymmetry_TH_PionDet_value = (Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'])
      Moller_Asymmetry_TH_PionDet.append(Moller_Asymmetry_TH_PionDet_value)
-     f_Pi_PionDet_value = np.random.normal(Dilution_Factor_PionDet.at[i, 'Ratio'], Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+     f_Pi_PionDet_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
      f_Pi_PionDet.append(f_Pi_PionDet_value)
-
-     Pion_Asymmetry_L_PionDet_True_value = (Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_L_PionDet_True.append(Pion_Asymmetry_L_PionDet_True_value)
-     Moller_Asymmetry_L_PionDet_True_value = (Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_L_PionDet_True.append(Moller_Asymmetry_L_PionDet_True_value)
-     Pion_Asymmetry_TV_PionDet_True_value = (Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TV_PionDet_True.append(Pion_Asymmetry_TV_PionDet_True_value)
-     Pion_Asymmetry_TH_PionDet_True_value = (Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TH_PionDet_True.append(Pion_Asymmetry_TH_PionDet_True_value)
-     Moller_Asymmetry_TV_PionDet_True_value = (Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TV_PionDet_True.append(Moller_Asymmetry_TV_PionDet_True_value)
-     Moller_Asymmetry_TH_PionDet_True_value = (Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TH_PionDet_True.append(Moller_Asymmetry_TH_PionDet_True_value)
-     f_Pi_PionDet_True_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
-     Measured_f_Pi_PionDet_True.append(f_Pi_PionDet_True_value)
+     df_Pi_PionDet_value = (Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+     df_Pi_PionDet.append(df_Pi_PionDet_value)
 
   # Convert the entire list to a numpy array
   A_piL_PionDet = np.array(Pion_Asymmetry_L_PionDet)
@@ -185,50 +177,40 @@ for iteration in range(N_L):
   A_eTH_PionDet = np.array(Moller_Asymmetry_TH_PionDet)
   f_Pi_PionDet = np.array(f_Pi_PionDet)
 
-  A_eL_PionDet_True = np.array(Moller_Asymmetry_L_PionDet_True)
-  A_eTV_PionDet_True = np.array(Moller_Asymmetry_TV_PionDet_True)
-  A_eTH_PionDet_True = np.array(Moller_Asymmetry_TH_PionDet_True)
-  A_piL_PionDet_True = np.array(Pion_Asymmetry_L_PionDet_True)
-  A_piTV_PionDet_True = np.array(Pion_Asymmetry_TV_PionDet_True)
-  A_piTH_PionDet_True = np.array(Pion_Asymmetry_TH_PionDet_True)
-  f_Pi_PionDet_True = np.array(Measured_f_Pi_PionDet_True)
-
   for i in range(num_PionDet):
      Measured_Asymmetry_PionDet_L_value = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet[i]*np.sin(phi_L) + A_eTH_PionDet[i]*np.cos(phi_L))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet[i]*np.sin(phi_L) + A_piTH_PionDet[i]*np.cos(phi_L)))
-     Measured_Asymmetry_PionDet_L[i, iteration] = Measured_Asymmetry_PionDet_L_value
-     Measured_Asymmetry_PionDet_L_value_True = (1 - f_Pi_PionDet_True[i]) * (A_eL_PionDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet_True[i]*np.sin(phi_L) + A_eTH_PionDet_True[i]*np.cos(phi_L))) + f_Pi_PionDet_True[i] * (A_piL_PionDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet_True[i]*np.sin(phi_L) + A_piTH_PionDet_True[i]*np.cos(phi_L)))
+     Measured_Asymmetry_PionDet_L[i, iteration] = np.random.normal(Measured_Asymmetry_PionDet_L_value, Uncertainty_L_PionDet)
+     Measured_Asymmetry_PionDet_L_value_True = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet[i]*np.sin(phi_L) + A_eTH_PionDet[i]*np.cos(phi_L))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet[i]*np.sin(phi_L) + A_piTH_PionDet[i]*np.cos(phi_L)))
      Measured_Asymmetry_PionDet_L_True[i, iteration] = Measured_Asymmetry_PionDet_L_value_True
 
-  for i in range(num_MainDet):
-     Pion_Asymmetry_L_MainDet_value = np.random.normal(Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_MainDet)
-     Pion_Asymmetry_L_MainDet.append(Pion_Asymmetry_L_MainDet_value)
-     Moller_Asymmetry_L_MainDet_value = np.random.normal(Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_MainDet)
-     Moller_Asymmetry_L_MainDet.append(Moller_Asymmetry_L_MainDet_value)
-     Pion_Asymmetry_TV_MainDet_value = np.random.normal(Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_MainDet)
-     Pion_Asymmetry_TV_MainDet.append(Pion_Asymmetry_TV_MainDet_value)
-     Pion_Asymmetry_TH_MainDet_value = np.random.normal(Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_L_MainDet)
-     Pion_Asymmetry_TH_MainDet.append(Pion_Asymmetry_TH_MainDet_value)
-     Moller_Asymmetry_TV_MainDet_value = np.random.normal(Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_MainDet)
-     Moller_Asymmetry_TV_MainDet.append(Moller_Asymmetry_TV_MainDet_value)
-     Moller_Asymmetry_TH_MainDet_value = np.random.normal(Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_L_MainDet)
-     Moller_Asymmetry_TH_MainDet.append(Moller_Asymmetry_TH_MainDet_value)
-     f_Pi_MainDet_value = np.random.normal(Dilution_Factor_MainDet.at[i, 'Ratio'], Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
-     f_Pi_MainDet.append(f_Pi_MainDet_value)
+     partial_f_Pi = -(A_eL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet[i]*np.sin(phi_L) + A_eTH_PionDet[i]*np.cos(phi_L))) + (A_piL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet[i]*np.sin(phi_L) + A_piTH_PionDet[i]*np.cos(phi_L)))
+     partial_theta = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * (-np.sin(theta_L)) + np.cos(theta_L) * (A_eTV_PionDet[i]*np.sin(phi_L) + A_eTH_PionDet[i]*np.cos(phi_L))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * (-np.sin(theta_L)) + np.cos(theta_L) * (A_piTV_PionDet[i]*np.sin(phi_L) + A_piTH_PionDet[i]*np.cos(phi_L)))
+     partial_phi = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_PionDet[i]*np.cos(phi_L) + A_eTH_PionDet[i]*(-np.sin(phi_L)))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_PionDet[i]*np.cos(phi_L) + A_piTH_PionDet[i]*(-np.sin(phi_L))))
 
-     Pion_Asymmetry_L_MainDet_True_value = (Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_L_MainDet_True.append(Pion_Asymmetry_L_MainDet_True_value)
-     Moller_Asymmetry_L_MainDet_True_value = (Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_L_MainDet_True.append(Moller_Asymmetry_L_MainDet_True_value)
-     Pion_Asymmetry_TV_MainDet_True_value = (Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TV_MainDet_True.append(Pion_Asymmetry_TV_MainDet_True_value)
-     Pion_Asymmetry_TH_MainDet_True_value = (Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TH_MainDet_True.append(Pion_Asymmetry_TH_MainDet_True_value)
-     Moller_Asymmetry_TV_MainDet_True_value = (Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TV_MainDet_True.append(Moller_Asymmetry_TV_MainDet_True_value)
-     Moller_Asymmetry_TH_MainDet_True_value = (Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TH_MainDet_True.append(Moller_Asymmetry_TH_MainDet_True_value)
-     f_Pi_MainDet_True_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
-     Measured_f_Pi_MainDet_True.append(f_Pi_MainDet_True_value)
+     # Store the computed partial derivatives
+     partial_f_Pi_PionDet_L_True[i, iteration] = partial_f_Pi
+     partial_theta_L_PionDet_True[i, iteration] = partial_theta
+     partial_phi_L_PionDet_True[i, iteration] = partial_phi
+
+     #dMeasured_Asymmetry_PionDet_L_True[i] = np.sqrt((partial_f_Pi_PionDet_L_True[i]*df_Pi_PionDet_L[i])**2 + (partial_theta_L_PionDet_True[i]*dtheta_L_PionDet[i])**2 + (partial_phi_L_PionDet_True[i]*dphi_L_PionDet[i,j])**2)
+
+  for i in range(num_MainDet):
+     Pion_Asymmetry_L_MainDet_value = (Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_L_MainDet.append(Pion_Asymmetry_L_MainDet_value)
+     Moller_Asymmetry_L_MainDet_value = (Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_L_MainDet.append(Moller_Asymmetry_L_MainDet_value)
+     Pion_Asymmetry_TV_MainDet_value = (Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TV_MainDet.append(Pion_Asymmetry_TV_MainDet_value)
+     Pion_Asymmetry_TH_MainDet_value = (Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TH_MainDet.append(Pion_Asymmetry_TH_MainDet_value)
+     Moller_Asymmetry_TV_MainDet_value = (Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TV_MainDet.append(Moller_Asymmetry_TV_MainDet_value)
+     Moller_Asymmetry_TH_MainDet_value = (Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TH_MainDet.append(Moller_Asymmetry_TH_MainDet_value)
+     f_Pi_MainDet_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
+     f_Pi_MainDet.append(f_Pi_MainDet_value)
+     df_Pi_MainDet_value = (Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
+     df_Pi_MainDet.append(df_Pi_MainDet_value)
 
   # Convert the entire list to a numpy array
   A_piL_MainDet = np.array(Pion_Asymmetry_L_MainDet)
@@ -239,27 +221,31 @@ for iteration in range(N_L):
   A_eTH_MainDet = np.array(Moller_Asymmetry_TH_MainDet)
   f_Pi_MainDet = np.array(f_Pi_MainDet)
 
-  A_eL_MainDet_True = np.array(Moller_Asymmetry_L_MainDet_True)
-  A_eTV_MainDet_True = np.array(Moller_Asymmetry_TV_MainDet_True)
-  A_eTH_MainDet_True = np.array(Moller_Asymmetry_TH_MainDet_True)
-  A_piL_MainDet_True = np.array(Pion_Asymmetry_L_MainDet_True)
-  A_piTV_MainDet_True = np.array(Pion_Asymmetry_TV_MainDet_True)
-  A_piTH_MainDet_True = np.array(Pion_Asymmetry_TH_MainDet_True)
-  f_Pi_MainDet_True = np.array(Measured_f_Pi_MainDet_True)
-
   for i in range(num_MainDet):
      Measured_Asymmetry_MainDet_L_value = (1 - f_Pi_MainDet[i]) * (A_eL_MainDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_MainDet[i]*np.sin(phi_L) + A_eTH_MainDet[i]*np.cos(phi_L))) + f_Pi_MainDet[i] * (A_piL_MainDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_MainDet[i]*np.sin(phi_L) + A_piTH_MainDet[i]*np.cos(phi_L)))
-     Measured_Asymmetry_MainDet_L[i, iteration] = Measured_Asymmetry_MainDet_L_value
-     Measured_Asymmetry_MainDet_L_value_True = (1 - f_Pi_MainDet_True[i]) * (A_eL_MainDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_MainDet_True[i]*np.sin(phi_L) + A_eTH_MainDet_True[i]*np.cos(phi_L))) + f_Pi_MainDet_True[i] * (A_piL_MainDet_True[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_MainDet_True[i]*np.sin(phi_L) + A_piTH_MainDet_True[i]*np.cos(phi_L)))
+     Measured_Asymmetry_MainDet_L[i, iteration] = np.random.normal(Measured_Asymmetry_MainDet_L_value, Uncertainty_L_MainDet)
+     Measured_Asymmetry_MainDet_L_value_True = (1 - f_Pi_MainDet[i]) * (A_eL_MainDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_eTV_MainDet[i]*np.sin(phi_L) + A_eTH_MainDet[i]*np.cos(phi_L))) + f_Pi_MainDet[i] * (A_piL_MainDet[i] * np.cos(theta_L) + np.sin(theta_L) * (A_piTV_MainDet[i]*np.sin(phi_L) + A_piTH_MainDet[i]*np.cos(phi_L)))
      Measured_Asymmetry_MainDet_L_True[i, iteration] = Measured_Asymmetry_MainDet_L_value_True
 
-print(Measured_Asymmetry_PionDet_L.shape, Measured_Asymmetry_PionDet_L_True.shape, Measured_Asymmetry_MainDet_L.shape, Measured_Asymmetry_MainDet_L_True.shape)
+print("Measured_Asymmetry_PionDet_L.shape:", Measured_Asymmetry_PionDet_L.shape)
+print("Measured_Asymmetry_PionDet_L_True.shape:", Measured_Asymmetry_PionDet_L_True.shape)
+print("Measured_Asymmetry_MainDet_L.shape:", Measured_Asymmetry_MainDet_L.shape)
+print("Measured_Asymmetry_MainDet_L_True.shape:", Measured_Asymmetry_MainDet_L_True.shape)
+
+print("theta_L:", theta_L)
+print("phi_L:", phi_L)
+
+#**************************************************************************************************************************************************
 #Generating Mock Data - Transverse
 Measured_Asymmetry_PionDet_T = np.zeros((num_PionDet, N_T))
 Measured_Asymmetry_MainDet_T = np.zeros((num_MainDet, N_T))
 
 Measured_Asymmetry_PionDet_T_True = np.zeros((num_PionDet, N_T))
 Measured_Asymmetry_MainDet_T_True = np.zeros((num_MainDet, N_T))
+
+#Choose one theta and phi for the whole run
+theta_T = np.random.normal(pi/2, Theta_uncertainty)
+phi_T = np.random.normal(0, Phi_uncertainty)
 
 for iteration in range(N_T):
   Pion_Asymmetry_L_PionDet = []
@@ -270,6 +256,7 @@ for iteration in range(N_T):
   Moller_Asymmetry_TV_PionDet = []
   Moller_Asymmetry_TH_PionDet =[]
   f_Pi_PionDet = []
+  df_Pi_PionDet = []
 
   Pion_Asymmetry_L_MainDet = []
   Moller_Asymmetry_L_MainDet = []
@@ -279,56 +266,25 @@ for iteration in range(N_T):
   Moller_Asymmetry_TV_MainDet = []
   Moller_Asymmetry_TH_MainDet =[]
   f_Pi_MainDet = []
-
-  Pion_Asymmetry_L_PionDet_True = []
-  Moller_Asymmetry_L_PionDet_True = []
-  Pion_Asymmetry_TV_PionDet_True = []
-  Pion_Asymmetry_TH_PionDet_True =[]
-  Moller_Asymmetry_TV_PionDet_True = []
-  Moller_Asymmetry_TH_PionDet_True =[]
-  Measured_f_Pi_PionDet_True = []
-
-  Pion_Asymmetry_L_MainDet_True = []
-  Moller_Asymmetry_L_MainDet_True = []
-  Pion_Asymmetry_TV_MainDet_True = []
-  Pion_Asymmetry_TH_MainDet_True =[]
-  Moller_Asymmetry_TV_MainDet_True = []
-  Moller_Asymmetry_TH_MainDet_True =[]
-  Measured_f_Pi_MainDet_True = []
-
-  theta_T = np.random.normal(pi/2, Theta_uncertainty)
-  phi_T = np.random.normal(0, Phi_uncertainty)
+  df_Pi_MainDet = []
 
   for i in range(num_PionDet):
-     Pion_Asymmetry_L_PionDet_value = np.random.normal(Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_PionDet)
+     Pion_Asymmetry_L_PionDet_value = (Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_L_PionDet.append(Pion_Asymmetry_L_PionDet_value)
-     Moller_Asymmetry_L_PionDet_value = np.random.normal(Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_PionDet)
+     Moller_Asymmetry_L_PionDet_value = (Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'])
      Moller_Asymmetry_L_PionDet.append(Moller_Asymmetry_L_PionDet_value)
-     Pion_Asymmetry_TV_PionDet_value = np.random.normal(Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_PionDet)
+     Pion_Asymmetry_TV_PionDet_value = (Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_TV_PionDet.append(Pion_Asymmetry_TV_PionDet_value)
-     Pion_Asymmetry_TH_PionDet_value = np.random.normal(Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_PionDet)
+     Pion_Asymmetry_TH_PionDet_value = (Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_TH_PionDet.append(Pion_Asymmetry_TH_PionDet_value)
-     Moller_Asymmetry_TV_PionDet_value = np.random.normal(Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_PionDet)
+     Moller_Asymmetry_TV_PionDet_value = (Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'])
      Moller_Asymmetry_TV_PionDet.append(Moller_Asymmetry_TV_PionDet_value)
-     Moller_Asymmetry_TH_PionDet_value = np.random.normal(Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_PionDet)
+     Moller_Asymmetry_TH_PionDet_value = (Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'])
      Moller_Asymmetry_TH_PionDet.append(Moller_Asymmetry_TH_PionDet_value)
-     f_Pi_PionDet_value = np.random.normal(Dilution_Factor_PionDet.at[i, 'Ratio'], Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+     f_Pi_PionDet_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
      f_Pi_PionDet.append(f_Pi_PionDet_value)
-
-     Pion_Asymmetry_L_PionDet_True_value = (Pion_Asy_L_PionDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_L_PionDet_True.append(Pion_Asymmetry_L_PionDet_True_value)
-     Moller_Asymmetry_L_PionDet_True_value = (Moller_Asy_L_PionDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_L_PionDet_True.append(Moller_Asymmetry_L_PionDet_True_value)
-     Pion_Asymmetry_TV_PionDet_True_value = (Pion_Asy_TV_PionDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TV_PionDet_True.append(Pion_Asymmetry_TV_PionDet_True_value)
-     Pion_Asymmetry_TH_PionDet_True_value = (Pion_Asy_TH_PionDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TH_PionDet_True.append(Pion_Asymmetry_TH_PionDet_True_value)
-     Moller_Asymmetry_TV_PionDet_True_value = (Moller_Asy_TV_PionDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TV_PionDet_True.append(Moller_Asymmetry_TV_PionDet_True_value)
-     Moller_Asymmetry_TH_PionDet_True_value = (Moller_Asy_TH_PionDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TH_PionDet_True.append(Moller_Asymmetry_TH_PionDet_True_value)
-     f_Pi_PionDet_True_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
-     Measured_f_Pi_PionDet_True.append(f_Pi_PionDet_True_value)
+     df_Pi_PionDet_value = (Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+     df_Pi_PionDet.append(df_Pi_PionDet_value)
 
   # Convert the entire list to a numpy array
   A_piL_PionDet = np.array(Pion_Asymmetry_L_PionDet)
@@ -339,50 +295,33 @@ for iteration in range(N_T):
   A_eTH_PionDet = np.array(Moller_Asymmetry_TH_PionDet)
   f_Pi_PionDet = np.array(f_Pi_PionDet)
 
-  A_eL_PionDet_True = np.array(Moller_Asymmetry_L_PionDet_True)
-  A_eTV_PionDet_True = np.array(Moller_Asymmetry_TV_PionDet_True)
-  A_eTH_PionDet_True = np.array(Moller_Asymmetry_TH_PionDet_True)
-  A_piL_PionDet_True = np.array(Pion_Asymmetry_L_PionDet_True)
-  A_piTV_PionDet_True = np.array(Pion_Asymmetry_TV_PionDet_True)
-  A_piTH_PionDet_True = np.array(Pion_Asymmetry_TH_PionDet_True)
-  f_Pi_PionDet_True = np.array(Measured_f_Pi_PionDet_True)
-
   for i in range(num_PionDet):
      Measured_Asymmetry_PionDet_T_value = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_PionDet[i]*np.sin(phi_T) + A_eTH_PionDet[i]*np.cos(phi_T))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_PionDet[i]*np.sin(phi_T) + A_piTH_PionDet[i]*np.cos(phi_T)))
-     Measured_Asymmetry_PionDet_T[i, iteration] = Measured_Asymmetry_PionDet_T_value
-     Measured_Asymmetry_PionDet_T_value_True = (1 - f_Pi_PionDet_True[i]) * (A_eL_PionDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_PionDet_True[i]*np.sin(phi_T) + A_eTH_PionDet_True[i]*np.cos(phi_T))) + f_Pi_PionDet_True[i] * (A_piL_PionDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_PionDet_True[i]*np.sin(phi_T) + A_piTH_PionDet_True[i]*np.cos(phi_T)))
+     Measured_Asymmetry_PionDet_T[i, iteration] = np.random.normal(Measured_Asymmetry_PionDet_T_value, Uncertainty_T_PionDet)
+     Measured_Asymmetry_PionDet_T_value_True = (1 - f_Pi_PionDet[i]) * (A_eL_PionDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_PionDet[i]*np.sin(phi_T) + A_eTH_PionDet[i]*np.cos(phi_T))) + f_Pi_PionDet[i] * (A_piL_PionDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_PionDet[i]*np.sin(phi_T) + A_piTH_PionDet[i]*np.cos(phi_T)))
      Measured_Asymmetry_PionDet_T_True[i, iteration] = Measured_Asymmetry_PionDet_T_value_True
 
   for i in range(num_MainDet):
-     Pion_Asymmetry_L_MainDet_value = np.random.normal(Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_MainDet)
+     Pion_Asymmetry_L_MainDet_value = (Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'])
      Pion_Asymmetry_L_MainDet.append(Pion_Asymmetry_L_MainDet_value)
-     Moller_Asymmetry_L_MainDet_value = np.random.normal(Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_MainDet)
-     Moller_Asymmetry_L_MainDet.append(Moller_Asymmetry_L_MainDet_value)
-     Pion_Asymmetry_TV_MainDet_value = np.random.normal(Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_MainDet)
-     Pion_Asymmetry_TV_MainDet.append(Pion_Asymmetry_TV_MainDet_value)
-     Pion_Asymmetry_TH_MainDet_value = np.random.normal(Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'], Uncertainty_T_MainDet)
-     Pion_Asymmetry_TH_MainDet.append(Pion_Asymmetry_TH_MainDet_value)
-     Moller_Asymmetry_TV_MainDet_value = np.random.normal(Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_MainDet)
-     Moller_Asymmetry_TV_MainDet.append(Moller_Asymmetry_TV_MainDet_value)
-     Moller_Asymmetry_TH_MainDet_value = np.random.normal(Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'], Uncertainty_T_MainDet)
-     Moller_Asymmetry_TH_MainDet.append(Moller_Asymmetry_TH_MainDet_value)
-     f_Pi_MainDet_value = np.random.normal(Dilution_Factor_MainDet.at[i, 'Ratio'], Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
-     f_Pi_MainDet.append(f_Pi_MainDet_value)
 
-     Pion_Asymmetry_L_MainDet_True_value = (Pion_Asy_L_MainDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_L_MainDet_True.append(Pion_Asymmetry_L_MainDet_True_value)
-     Moller_Asymmetry_L_MainDet_True_value = (Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_L_MainDet_True.append(Moller_Asymmetry_L_MainDet_True_value)
-     Pion_Asymmetry_TV_MainDet_True_value = (Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TV_MainDet_True.append(Pion_Asymmetry_TV_MainDet_True_value)
-     Pion_Asymmetry_TH_MainDet_True_value = (Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'])
-     Pion_Asymmetry_TH_MainDet_True.append(Pion_Asymmetry_TH_MainDet_True_value)
-     Moller_Asymmetry_TV_MainDet_True_value = (Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TV_MainDet_True.append(Moller_Asymmetry_TV_MainDet_True_value)
-     Moller_Asymmetry_TH_MainDet_True_value = (Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'])
-     Moller_Asymmetry_TH_MainDet_True.append(Moller_Asymmetry_TH_MainDet_True_value)
-     f_Pi_MainDet_True_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
-     Measured_f_Pi_MainDet_True.append(f_Pi_MainDet_True_value)
+     Moller_Asymmetry_L_MainDet_value = (Moller_Asy_L_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_L_MainDet.append(Moller_Asymmetry_L_MainDet_value)
+
+     Pion_Asymmetry_TV_MainDet_value = (Pion_Asy_TV_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TV_MainDet.append(Pion_Asymmetry_TV_MainDet_value)
+
+     Pion_Asymmetry_TH_MainDet_value = (Pion_Asy_TH_MainDet.at[i, 'Pion_Asymmetry'])
+     Pion_Asymmetry_TH_MainDet.append(Pion_Asymmetry_TH_MainDet_value)
+
+     Moller_Asymmetry_TV_MainDet_value = (Moller_Asy_TV_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TV_MainDet.append(Moller_Asymmetry_TV_MainDet_value)
+
+     Moller_Asymmetry_TH_MainDet_value = (Moller_Asy_TH_MainDet.at[i, 'Moller_Asymmetry'])
+     Moller_Asymmetry_TH_MainDet.append(Moller_Asymmetry_TH_MainDet_value)
+
+     f_Pi_MainDet_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
+     f_Pi_MainDet.append(f_Pi_MainDet_value)
 
   # Convert the entire list to a numpy array
   A_piL_MainDet = np.array(Pion_Asymmetry_L_MainDet)
@@ -393,18 +332,743 @@ for iteration in range(N_T):
   A_eTH_MainDet = np.array(Moller_Asymmetry_TH_MainDet)
   f_Pi_MainDet = np.array(f_Pi_MainDet)
 
-  A_eL_MainDet_True = np.array(Moller_Asymmetry_L_MainDet_True)
-  A_eTV_MainDet_True = np.array(Moller_Asymmetry_TV_MainDet_True)
-  A_eTH_MainDet_True = np.array(Moller_Asymmetry_TH_MainDet_True)
-  A_piL_MainDet_True = np.array(Pion_Asymmetry_L_MainDet_True)
-  A_piTV_MainDet_True = np.array(Pion_Asymmetry_TV_MainDet_True)
-  A_piTH_MainDet_True = np.array(Pion_Asymmetry_TH_MainDet_True)
-  f_Pi_MainDet_True = np.array(Measured_f_Pi_MainDet_True)
-
   for i in range(num_MainDet):
      Measured_Asymmetry_MainDet_T_value = (1 - f_Pi_MainDet[i]) * (A_eL_MainDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_MainDet[i]*np.sin(phi_T) + A_eTH_MainDet[i]*np.cos(phi_T))) + f_Pi_MainDet[i] * (A_piL_MainDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_MainDet[i]*np.sin(phi_T) + A_piTH_MainDet[i]*np.cos(phi_T)))
-     Measured_Asymmetry_MainDet_T[i, iteration] = Measured_Asymmetry_MainDet_T_value
-     Measured_Asymmetry_MainDet_T_value_True = (1 - f_Pi_MainDet_True[i]) * (A_eL_MainDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_MainDet_True[i]*np.sin(phi_T) + A_eTH_MainDet_True[i]*np.cos(phi_T))) + f_Pi_MainDet_True[i] * (A_piL_MainDet_True[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_MainDet_True[i]*np.sin(phi_T) + A_piTH_MainDet_True[i]*np.cos(phi_T)))
+     Measured_Asymmetry_MainDet_T[i, iteration] = np.random.normal(Measured_Asymmetry_MainDet_T_value, Uncertainty_T_MainDet)
+     Measured_Asymmetry_MainDet_T_value_True = (1 - f_Pi_MainDet[i]) * (A_eL_MainDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_eTV_MainDet[i]*np.sin(phi_T) + A_eTH_MainDet[i]*np.cos(phi_T))) + f_Pi_MainDet[i] * (A_piL_MainDet[i] * np.cos(theta_T) + np.sin(theta_T) * (A_piTV_MainDet[i]*np.sin(phi_T) + A_piTH_MainDet[i]*np.cos(phi_T)))
      Measured_Asymmetry_MainDet_T_True[i, iteration] = Measured_Asymmetry_MainDet_T_value_True
 
-print(Measured_Asymmetry_PionDet_T.shape, Measured_Asymmetry_PionDet_T_True.shape, Measured_Asymmetry_MainDet_T.shape, Measured_Asymmetry_MainDet_T_True.shape)
+print("Measured_Asymmetry_PionDet_T.shape:", Measured_Asymmetry_PionDet_T.shape)
+print("Measured_Asymmetry_PionDet_T_True.shape:", Measured_Asymmetry_PionDet_T_True.shape)
+print("Measured_Asymmetry_MainDet_T.shape:", Measured_Asymmetry_MainDet_T.shape)
+print("Measured_Asymmetry_MainDet_T_True.shape:", Measured_Asymmetry_MainDet_T_True.shape)
+
+print("theta_T:", theta_T)
+print("phi_T:", phi_T)
+
+#**************************************************************************************************************************************************
+dMeasured_Asymmetry_PionDet_L = []
+dMeasured_Asymmetry_PionDet_T = []
+
+dMeasured_Asymmetry_MainDet_L = []
+dMeasured_Asymmetry_MainDet_T = []
+
+for i in range(28):
+  dMeasured_Asymmetry_PionDet_L.append(np.array([Uncertainty_L_PionDet]*N_L))
+  dMeasured_Asymmetry_PionDet_T.append(np.array([Uncertainty_T_PionDet]*N_T))
+
+for i in range(84):
+  dMeasured_Asymmetry_MainDet_L.append(np.array([Uncertainty_L_MainDet]*N_L))
+  dMeasured_Asymmetry_MainDet_T.append(np.array([Uncertainty_T_MainDet]*N_T))
+
+print("np.shape(dMeasured_Asymmetry_PionDet_L):", np.shape(dMeasured_Asymmetry_PionDet_L))
+print("np.shape(dMeasured_Asymmetry_MainDet_L):", np.shape(dMeasured_Asymmetry_MainDet_L))
+print("np.shape(dMeasured_Asymmetry_PionDet_T):", np.shape(dMeasured_Asymmetry_PionDet_T))
+print("np.shape(dMeasured_Asymmetry_MainDet_T):", np.shape(dMeasured_Asymmetry_MainDet_T))
+
+#**************************************************************************************************************************************************
+f_Pi_PionDet_L = []
+f_Pi_MainDet_L = []
+df_Pi_PionDet_L = []
+df_Pi_MainDet_L = []
+
+f_Pi_PionDet_T = []
+f_Pi_MainDet_T = []
+df_Pi_PionDet_T = []
+df_Pi_MainDet_T = []
+
+for i in range(28):
+  f_Pi_PionDet_L_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
+  f_Pi_PionDet_L.append(np.array([f_Pi_PionDet_L_value]*N_L))
+  df_Pi_PionDet_L_value = (Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+  df_Pi_PionDet_L.append(np.array([df_Pi_PionDet_L_value]*N_L))
+
+  f_Pi_PionDet_T_value = (Dilution_Factor_PionDet.at[i, 'Ratio'])
+  f_Pi_PionDet_T.append(np.array([f_Pi_PionDet_T_value]*N_T))
+  df_Pi_PionDet_T_value = (Dilution_Factor_PionDet.at[i, 'Ratio_Uncertainty'])
+  df_Pi_PionDet_T.append(np.array([df_Pi_PionDet_T_value]*N_T))
+
+for i in range(84):
+  f_Pi_MainDet_L_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
+  f_Pi_MainDet_L.append(np.array([f_Pi_MainDet_L_value]*N_L))
+  df_Pi_MainDet_L_value = (Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
+  df_Pi_MainDet_L.append(np.array([df_Pi_MainDet_L_value]*N_L))
+
+  f_Pi_MainDet_T_value = (Dilution_Factor_MainDet.at[i, 'Ratio'])
+  f_Pi_MainDet_T.append(np.array([f_Pi_MainDet_T_value]*N_T))
+  df_Pi_MainDet_T_value = (Dilution_Factor_MainDet.at[i, 'Ratio_Uncertainty'])
+  df_Pi_MainDet_T.append(np.array([df_Pi_MainDet_T_value]*N_T))
+
+f_Pi_PionDet_L = np.array(f_Pi_PionDet_L)
+f_Pi_PionDet_T = np.array(f_Pi_PionDet_T)
+f_Pi_MainDet_L = np.array(f_Pi_MainDet_L)
+f_Pi_MainDet_T = np.array(f_Pi_MainDet_T)
+
+df_Pi_PionDet_L = np.array(df_Pi_PionDet_L)
+df_Pi_PionDet_T = np.array(df_Pi_PionDet_T)
+df_Pi_MainDet_L = np.array(df_Pi_MainDet_L)
+df_Pi_MainDet_T = np.array(df_Pi_MainDet_T)
+
+print("f_Pi_PionDet_L.shape:", f_Pi_PionDet_L.shape)
+print("f_Pi_PionDet_T.shape:", f_Pi_PionDet_T.shape)
+print("f_Pi_MainDet_L.shape:", f_Pi_MainDet_L.shape)
+print("f_Pi_MainDet_T.shape:", f_Pi_MainDet_T.shape)
+
+print("df_Pi_PionDet_L.shape:", df_Pi_PionDet_L.shape)
+print("df_Pi_PionDet_T.shape:", df_Pi_PionDet_T.shape)
+print("df_Pi_MainDet_L.shape:", df_Pi_MainDet_L.shape)
+print("df_Pi_MainDet_T.shape:", df_Pi_MainDet_T.shape)
+
+#**************************************************************************************************************************************************
+A_eL_L_PionDet = [None]*28
+A_eT_V_L_PionDet = [None]*28
+A_eT_H_L_PionDet = [None]*28
+A_piL_L_PionDet = [None]*28
+A_piT_V_L_PionDet = [None]*28
+A_piT_H_L_PionDet = [None]*28
+
+A_eL_L_MainDet = [None]*84
+A_eT_V_L_MainDet = [None]*84
+A_eT_H_L_MainDet = [None]*84
+A_piL_L_MainDet = [None]*84
+A_piT_V_L_MainDet = [None]*84
+A_piT_H_L_MainDet = [None]*84
+
+A_eL_T_PionDet = [None]*28
+A_eT_V_T_PionDet = [None]*28
+A_eT_H_T_PionDet = [None]*28
+A_piL_T_PionDet = [None]*28
+A_piT_V_T_PionDet = [None]*28
+A_piT_H_T_PionDet = [None]*28
+
+A_eL_T_MainDet = [None]*84
+A_eT_V_T_MainDet = [None]*84
+A_eT_H_T_MainDet = [None]*84
+A_piL_T_MainDet = [None]*84
+A_piT_V_T_MainDet = [None]*84
+A_piT_H_T_MainDet = [None]*84
+
+
+for i in range(0, 28):
+    A_eL_L_PionDet[i] = np.array([Data_A_eL_PionDet[i]]*N_L)
+    A_eT_V_L_PionDet[i] = np.array([Data_A_eT_V_PionDet[i]]*N_L)
+    A_eT_H_L_PionDet[i] = np.array([Data_A_eT_H_PionDet[i]]*N_L)
+    A_piL_L_PionDet[i] = np.array([Data_A_piL_PionDet[i]]*N_L)
+    A_piT_V_L_PionDet[i] = np.array([Data_A_piT_V_PionDet[i]]*N_L)
+    A_piT_H_L_PionDet[i] = np.array([Data_A_piT_H_PionDet[i]]*N_L)
+
+    A_eL_T_PionDet[i] = np.array([Data_A_eL_PionDet[i]]*N_T)
+    A_eT_V_T_PionDet[i] = np.array([Data_A_eT_V_PionDet[i]]*N_T)
+    A_eT_H_T_PionDet[i] = np.array([Data_A_eT_H_PionDet[i]]*N_T)
+    A_piL_T_PionDet[i] = np.array([Data_A_piL_PionDet[i]]*N_T)
+    A_piT_V_T_PionDet[i] = np.array([Data_A_piT_V_PionDet[i]]*N_T)
+    A_piT_H_T_PionDet[i] = np.array([Data_A_piT_H_PionDet[i]]*N_T)
+
+for i in range(0, 84):
+    A_eL_L_MainDet[i] = np.array([Data_A_eL_MainDet[i]]*N_L)
+    A_eT_V_L_MainDet[i] = np.array([Data_A_eT_V_MainDet[i]]*N_L)
+    A_eT_H_L_MainDet[i] = np.array([Data_A_eT_H_MainDet[i]]*N_L)
+    A_piL_L_MainDet[i] = np.array([Data_A_piL_MainDet[i]]*N_L)
+    A_piT_V_L_MainDet[i] = np.array([Data_A_piT_V_MainDet[i]]*N_L)
+    A_piT_H_L_MainDet[i] = np.array([Data_A_piT_H_MainDet[i]]*N_L)
+
+    A_eL_T_MainDet[i] = np.array([Data_A_eL_MainDet[i]]*N_T)
+    A_eT_V_T_MainDet[i] = np.array([Data_A_eT_V_MainDet[i]]*N_T)
+    A_eT_H_T_MainDet[i] = np.array([Data_A_eT_H_MainDet[i]]*N_T)
+    A_piL_T_MainDet[i] = np.array([Data_A_piL_MainDet[i]]*N_T)
+    A_piT_V_T_MainDet[i] = np.array([Data_A_piT_V_MainDet[i]]*N_T)
+    A_piT_H_T_MainDet[i] = np.array([Data_A_piT_H_MainDet[i]]*N_T)
+
+A_eL_L_PionDet = np.array(A_eL_L_PionDet)
+A_eT_V_L_PionDet = np.array(A_eT_V_L_PionDet)
+A_eT_H_L_PionDet = np.array(A_eT_H_L_PionDet)
+A_piL_L_PionDet = np.array(A_piL_L_PionDet)
+A_piT_V_L_PionDet = np.array(A_piT_V_L_PionDet)
+A_piT_H_L_PionDet = np.array(A_piT_H_L_PionDet)
+
+A_eL_T_PionDet = np.array(A_eL_T_PionDet)
+A_eT_V_T_PionDet = np.array(A_eT_V_T_PionDet)
+A_eT_H_T_PionDet = np.array(A_eT_H_T_PionDet)
+A_piL_T_PionDet = np.array(A_piL_T_PionDet)
+A_piT_V_T_PionDet = np.array(A_piT_V_T_PionDet)
+A_piT_H_T_PionDet = np.array(A_piT_H_T_PionDet)
+
+A_eL_L_MainDet = np.array(A_eL_L_MainDet)
+A_eT_V_L_MainDet = np.array(A_eT_V_L_MainDet)
+A_eT_H_L_MainDet = np.array(A_eT_H_L_MainDet)
+A_piL_L_MainDet = np.array(A_piL_L_MainDet)
+A_piT_V_L_MainDet = np.array(A_piT_V_L_MainDet)
+A_piT_H_L_MainDet = np.array(A_piT_H_L_MainDet)
+
+A_eL_T_MainDet = np.array(A_eL_T_MainDet)
+A_eT_V_T_MainDet = np.array(A_eT_V_T_MainDet)
+A_eT_H_T_MainDet = np.array(A_eT_H_T_MainDet)
+A_piL_T_MainDet = np.array(A_piL_T_MainDet)
+A_piT_V_T_MainDet = np.array(A_piT_V_T_MainDet)
+A_piT_H_T_MainDet = np.array(A_piT_H_T_MainDet)
+
+print("np.shape(A_eT_V_L_PionDet):", np.shape(A_eT_V_L_PionDet))
+print("np.shape(A_eT_H_T_PionDet):", np.shape(A_eT_H_T_PionDet))
+print("np.shape(A_piT_V_L_PionDet):", np.shape(A_piT_V_L_PionDet))
+print("np.shape(A_piT_H_T_PionDet):", np.shape(A_piT_H_T_PionDet))
+
+print("np.shape(A_eT_V_L_MainDet):", np.shape(A_eT_V_L_MainDet))
+print("np.shape(A_eT_H_T_MainDet):", np.shape(A_eT_H_T_MainDet))
+print("np.shape(A_piT_V_L_MainDet):", np.shape(A_piT_V_L_MainDet))
+print("np.shape(A_piT_H_T_MainDet):", np.shape(A_piT_H_T_MainDet))
+
+#**************************************************************************************************************************************************
+theta_L_PionDet = np.zeros((num_PionDet, N_L))
+dtheta_L_PionDet = np.zeros((num_PionDet, N_L))
+theta_L_MainDet = np.zeros((num_MainDet, N_L))
+dtheta_L_MainDet = np.zeros((num_MainDet, N_L))
+
+phi_L_PionDet = np.zeros((num_PionDet, N_L))
+dphi_L_PionDet = np.zeros((num_PionDet, N_L))
+phi_L_MainDet = np.zeros((num_MainDet, N_L))
+dphi_L_MainDet = np.zeros((num_MainDet, N_L))
+
+for iteration in range(N_L):
+
+    theta_L_PionDet_i = np.array([theta_L] * num_PionDet)
+    dtheta_L_PionDet_i = np.array([Theta_uncertainty] * num_PionDet)
+    theta_L_MainDet_i = np.array([theta_L] * num_MainDet)
+    dtheta_L_MainDet_i = np.array([Theta_uncertainty] * num_MainDet)
+
+    phi_L_PionDet_i = np.array([phi_L] * num_PionDet)
+    dphi_L_PionDet_i = np.array([Phi_uncertainty] * num_PionDet)
+    phi_L_MainDet_i = np.array([phi_L] * num_MainDet)
+    dphi_L_MainDet_i = np.array([Phi_uncertainty] * num_MainDet)
+
+
+    for i in range(num_PionDet):
+        theta_L_PionDet[i, iteration] = theta_L_PionDet_i[i]
+        phi_L_PionDet[i, iteration] = phi_L_PionDet_i[i]
+
+    for i in range(num_MainDet):
+        theta_L_MainDet[i, iteration] = theta_L_MainDet_i[i]
+        phi_L_MainDet[i, iteration] = phi_L_MainDet_i[i]
+
+print("phi_L_PionDet.shape:", phi_L_PionDet.shape)
+print("theta_L_PionDet.shape:", theta_L_PionDet.shape)
+
+print("phi_L_MainDet.shape:", phi_L_MainDet.shape)
+print("theta_L_MainDet.shape:", theta_L_MainDet.shape)
+
+#**************************************************************************************************************************************************
+theta_T_PionDet = np.zeros((num_PionDet, N_T))
+dtheta_T_PionDet = np.zeros((num_PionDet, N_T))
+theta_T_MainDet = np.zeros((num_MainDet, N_T))
+dtheta_T_MainDet = np.zeros((num_MainDet, N_T))
+
+phi_T_PionDet = np.zeros((num_PionDet, N_T))
+dphi_T_PionDet = np.zeros((num_PionDet, N_T))
+phi_T_MainDet = np.zeros((num_MainDet, N_T))
+dphi_T_MainDet = np.zeros((num_MainDet, N_T))
+
+for iteration in range(N_T):
+
+    theta_T_PionDet_i = np.array([theta_T] * num_PionDet)
+    dtheta_T_PionDet_i = np.array([Theta_uncertainty] * num_PionDet)
+    theta_T_MainDet_i = np.array([theta_T] * num_MainDet)
+    dtheta_T_MainDet_i = np.array([Theta_uncertainty] * num_MainDet)
+
+    phi_T_PionDet_i = np.array([phi_T] * num_PionDet)
+    dphi_T_PionDet_i = np.array([Phi_uncertainty] * num_PionDet)
+    phi_T_MainDet_i = np.array([phi_T] * num_MainDet)
+    dphi_T_MainDet_i = np.array([Phi_uncertainty] * num_MainDet)
+
+    for i in range(num_PionDet):
+        theta_T_PionDet[i, iteration] = theta_T_PionDet_i[i]
+        phi_T_PionDet[i, iteration] = phi_T_PionDet_i[i]
+
+    for i in range(num_MainDet):
+        theta_T_MainDet[i, iteration] = theta_T_MainDet_i[i]
+        phi_T_MainDet[i, iteration] = phi_T_MainDet_i[i]
+
+print("phi_T_PionDet.shape:", phi_T_PionDet.shape)
+print("theta_T_PionDet.shape:", theta_T_PionDet.shape)
+
+print("phi_T_MainDet.shape:", phi_T_MainDet.shape)
+print("theta_T_MainDet.shape:", theta_T_MainDet.shape)
+
+#**************************************************************************************************************************************************
+asymmetry_code = """
+data {
+    int<lower=0> num_PionDet;
+    int<lower=0> num_MainDet;
+    int<lower=0> N_L;
+    int<lower=0> N_T;
+    matrix[num_PionDet, N_L] f_Pi_PionDet_L;
+    matrix[num_MainDet, N_L] f_Pi_MainDet_L;
+    matrix[num_PionDet, N_L] A_eL_L_PionDet;
+    matrix[num_PionDet, N_L] A_eT_V_L_PionDet;
+    matrix[num_PionDet, N_L] A_eT_H_L_PionDet;
+    matrix[num_PionDet, N_L] A_piL_L_PionDet;
+    matrix[num_PionDet, N_L] A_piT_V_L_PionDet;
+    matrix[num_PionDet, N_L] A_piT_H_L_PionDet;
+    matrix[num_MainDet, N_L] A_eL_L_MainDet;
+    matrix[num_MainDet, N_L] A_eT_V_L_MainDet;
+    matrix[num_MainDet, N_L] A_eT_H_L_MainDet;
+    matrix[num_MainDet, N_L] A_piL_L_MainDet;
+    matrix[num_MainDet, N_L] A_piT_V_L_MainDet;
+    matrix[num_MainDet, N_L] A_piT_H_L_MainDet;
+    matrix[num_PionDet, N_L] Measured_Asymmetry_PionDet_L;
+    matrix[num_PionDet, N_L] dMeasured_Asymmetry_PionDet_L;
+    matrix[num_MainDet, N_L] Measured_Asymmetry_MainDet_L;
+    matrix[num_MainDet, N_L] dMeasured_Asymmetry_MainDet_L;
+    matrix[num_PionDet, N_L] theta_L_PionDet;
+    matrix[num_PionDet, N_L] phi_L_PionDet;
+    matrix[num_MainDet, N_L] theta_L_MainDet;
+    matrix[num_MainDet, N_L] phi_L_MainDet;
+    matrix[num_PionDet, N_T] f_Pi_PionDet_T;
+    matrix[num_MainDet, N_T] f_Pi_MainDet_T;
+    matrix[num_PionDet, N_T] A_eL_T_PionDet;
+    matrix[num_PionDet, N_T] A_eT_V_T_PionDet;
+    matrix[num_PionDet, N_T] A_eT_H_T_PionDet;
+    matrix[num_PionDet, N_T] A_piL_T_PionDet;
+    matrix[num_PionDet, N_T] A_piT_V_T_PionDet;
+    matrix[num_PionDet, N_T] A_piT_H_T_PionDet;
+    matrix[num_MainDet, N_T] A_eL_T_MainDet;
+    matrix[num_MainDet, N_T] A_eT_V_T_MainDet;
+    matrix[num_MainDet, N_T] A_eT_H_T_MainDet;
+    matrix[num_MainDet, N_T] A_piL_T_MainDet;
+    matrix[num_MainDet, N_T] A_piT_V_T_MainDet;
+    matrix[num_MainDet, N_T] A_piT_H_T_MainDet;
+    matrix[num_PionDet, N_T] Measured_Asymmetry_PionDet_T;
+    matrix[num_PionDet, N_T] dMeasured_Asymmetry_PionDet_T;
+    matrix[num_MainDet, N_T] Measured_Asymmetry_MainDet_T;
+    matrix[num_MainDet, N_T] dMeasured_Asymmetry_MainDet_T;
+    matrix[num_PionDet, N_T] theta_T_PionDet;
+    matrix[num_PionDet, N_T] phi_T_PionDet;
+    matrix[num_MainDet, N_T] theta_T_MainDet;
+    matrix[num_MainDet, N_T] phi_T_MainDet;
+}
+parameters {
+    real A_eL;
+    real A_eT;
+    real A_piL;
+    real A_piT;
+}
+
+model {
+    //priors
+    A_eL ~ normal(-33, 1000);
+    A_eT ~ normal(11000, 100000);
+    A_piL ~ normal(25400, 100000);
+    A_piT ~ normal(60100, 100000);
+    //A_eL ~ normal(-33, 1);
+    //A_eT ~ normal(11000, 100);
+    //A_piL ~ normal(25400, 100);
+    //A_piT ~ normal(60100, 100);
+
+    // Model for Pion detector
+    for (i in 1:num_PionDet)
+        for (j in 1:N_L)
+            Measured_Asymmetry_PionDet_L[i, j] ~ normal((1 - f_Pi_PionDet_L[i, j]) * ((A_eL * A_eL_L_PionDet[i,j]) * cos(theta_L_PionDet[i,j]) + A_eT * sin(theta_L_PionDet[i,j]) * (A_eT_V_L_PionDet[i,j]*sin(phi_L_PionDet[i,j])+A_eT_H_L_PionDet[i,j]*cos(phi_L_PionDet[i,j]))) + f_Pi_PionDet_L[i, j] * ((A_piL * A_piL_L_PionDet[i,j]) * cos(theta_L_PionDet[i,j]) + A_piT * sin(theta_L_PionDet[i,j]) * (A_piT_V_L_PionDet[i,j]*sin(phi_L_PionDet[i,j])+A_piT_H_L_PionDet[i,j]*cos(phi_L_PionDet[i,j]))), dMeasured_Asymmetry_PionDet_L[i,j]);
+    for (i in 1:num_PionDet)
+        for (j in 1:N_T)
+            Measured_Asymmetry_PionDet_T[i, j] ~ normal((1 - f_Pi_PionDet_T[i, j]) * ((A_eL * A_eL_T_PionDet[i,j]) * cos(theta_T_PionDet[i,j]) + A_eT * sin(theta_T_PionDet[i,j]) * (A_eT_V_T_PionDet[i,j]*sin(phi_T_PionDet[i,j])+A_eT_H_T_PionDet[i,j]*cos(phi_T_PionDet[i,j]))) + f_Pi_PionDet_T[i, j] * ((A_piL * A_piL_T_PionDet[i,j]) * cos(theta_T_PionDet[i,j]) + A_piT * sin(theta_T_PionDet[i,j]) * (A_piT_V_T_PionDet[i,j]*sin(phi_T_PionDet[i,j])+A_piT_H_T_PionDet[i,j]*cos(phi_T_PionDet[i,j]))), dMeasured_Asymmetry_PionDet_T[i,j]);
+
+
+    // Model for Main detetcor
+    for (i in 1:num_MainDet)
+        for (j in 1:N_L)
+            Measured_Asymmetry_MainDet_L[i, j] ~ normal((1 - f_Pi_MainDet_L[i, j]) * ((A_eL * A_eL_L_MainDet[i,j]) * cos(theta_L_MainDet[i,j]) + A_eT * sin(theta_L_MainDet[i,j]) * (A_eT_V_L_MainDet[i,j]*sin(phi_L_MainDet[i,j])+A_eT_H_L_MainDet[i,j]*cos(phi_L_MainDet[i,j]))) + f_Pi_MainDet_L[i, j] * ((A_piL * A_piL_L_MainDet[i,j]) * cos(theta_L_MainDet[i,j]) + A_piT * sin(theta_L_MainDet[i,j]) * (A_piT_V_L_MainDet[i,j]*sin(phi_L_MainDet[i,j])+A_piT_H_L_MainDet[i,j]*cos(phi_L_MainDet[i,j]))), dMeasured_Asymmetry_MainDet_L[i,j]);
+    for (i in 1:num_MainDet)
+        for (j in 1:N_T)
+            Measured_Asymmetry_MainDet_T[i, j] ~ normal((1 - f_Pi_MainDet_T[i, j]) * ((A_eL * A_eL_T_MainDet[i,j]) * cos(theta_T_MainDet[i,j]) + A_eT * sin(theta_T_MainDet[i,j]) * (A_eT_V_T_MainDet[i,j]*sin(phi_T_MainDet[i,j])+A_eT_H_T_MainDet[i,j]*cos(phi_T_MainDet[i,j]))) + f_Pi_MainDet_T[i, j] * ((A_piL * A_piL_T_MainDet[i,j]) * cos(theta_T_MainDet[i,j]) + A_piT * sin(theta_T_MainDet[i,j]) * (A_piT_V_T_MainDet[i,j]*sin(phi_T_MainDet[i,j])+A_piT_H_T_MainDet[i,j]*cos(phi_T_MainDet[i,j]))), dMeasured_Asymmetry_MainDet_T[i,j]);
+}
+"""
+
+#**************************************************************************************************************************************************
+#Put our data in a dictionary
+asym_data = {
+             'num_PionDet': num_PionDet,
+             'num_MainDet': num_MainDet,
+             'N_L': N_L,
+             'N_T': N_T,
+             'f_Pi_PionDet_L':f_Pi_PionDet_L,
+             'f_Pi_MainDet_L':f_Pi_MainDet_L,
+             'f_Pi_PionDet_T':f_Pi_PionDet_T,
+             'f_Pi_MainDet_T':f_Pi_MainDet_T,
+             'Measured_Asymmetry_PionDet_L': Measured_Asymmetry_PionDet_L,
+             'dMeasured_Asymmetry_PionDet_L': dMeasured_Asymmetry_PionDet_L,
+             'Measured_Asymmetry_MainDet_L': Measured_Asymmetry_MainDet_L,
+             'dMeasured_Asymmetry_MainDet_L': dMeasured_Asymmetry_MainDet_L,
+             'Measured_Asymmetry_PionDet_T': Measured_Asymmetry_PionDet_T,
+             'dMeasured_Asymmetry_PionDet_T': dMeasured_Asymmetry_PionDet_T,
+             'Measured_Asymmetry_MainDet_T': Measured_Asymmetry_MainDet_T,
+             'dMeasured_Asymmetry_MainDet_T': dMeasured_Asymmetry_MainDet_T,
+             'A_eL_L_PionDet': A_eL_L_PionDet,
+             'A_eT_V_L_PionDet': A_eT_V_L_PionDet,
+             'A_eT_H_L_PionDet': A_eT_H_L_PionDet,
+             'A_piL_L_PionDet': A_piL_L_PionDet,
+             'A_piT_V_L_PionDet': A_piT_V_L_PionDet,
+             'A_piT_H_L_PionDet': A_piT_H_L_PionDet,
+             'A_eL_L_MainDet': A_eL_L_MainDet,
+             'A_eT_V_L_MainDet': A_eT_V_L_MainDet,
+             'A_eT_H_L_MainDet': A_eT_H_L_MainDet,
+             'A_piL_L_MainDet': A_piL_L_MainDet,
+             'A_piT_V_L_MainDet': A_piT_V_L_MainDet,
+             'A_piT_H_L_MainDet': A_piT_H_L_MainDet,
+             'A_eL_T_PionDet': A_eL_T_PionDet,
+             'A_eT_V_T_PionDet': A_eT_V_T_PionDet,
+             'A_eT_H_T_PionDet': A_eT_H_T_PionDet,
+             'A_piL_T_PionDet': A_piL_T_PionDet,
+             'A_piT_V_T_PionDet': A_piT_V_T_PionDet,
+             'A_piT_H_T_PionDet': A_piT_H_T_PionDet,
+             'A_eL_T_MainDet': A_eL_T_MainDet,
+             'A_eT_V_T_MainDet': A_eT_V_T_MainDet,
+             'A_eT_H_T_MainDet': A_eT_H_T_MainDet,
+             'A_piL_T_MainDet': A_piL_T_MainDet,
+             'A_piT_V_T_MainDet': A_piT_V_T_MainDet,
+             'A_piT_H_T_MainDet': A_piT_H_T_MainDet,
+             'theta_L_PionDet': theta_L_PionDet,
+             'phi_L_PionDet': phi_L_PionDet,
+             'theta_L_MainDet': theta_L_MainDet,
+             'phi_L_MainDet': phi_L_MainDet,
+             'theta_T_PionDet': theta_T_PionDet,
+             'phi_T_PionDet': phi_T_PionDet,
+             'theta_T_MainDet': theta_T_MainDet,
+             'phi_T_MainDet': phi_T_MainDet,
+            }
+#print("asym_data=", asym_data)
+print("N_L:", N_L)
+print("N_T:", N_T)
+
+#**************************************************************************************************************************************************
+# Compile the model and generate samples
+model = pystan.StanModel(model_code=asymmetry_code)
+
+# Train the model and generate samples
+asym_fit = model.sampling(data=asym_data, seed=321, iter=10500, chains=1, warmup=500)
+
+# Get summary of the fit
+summary = asym_fit.summary()
+
+# Convert the summary to a DataFrame if you prefer it in that format
+summary_df = pd.DataFrame(summary['summary'], columns=summary['summary_colnames'], index=summary['summary_rownames'])
+
+#print(summary)
+print("summary_df:\n", summary_df)
+
+# Extracting the sampled data into a dictionary
+fit_data = asym_fit.extract(permuted=True)
+
+# Converting the dictionary into a DataFrame
+# For a simple example, let's assume we're only interested in some specific parameters
+# If you have multidimensional parameters, you'll need to handle them appropriately
+fit_df = pd.DataFrame({
+    'A_eL': fit_data['A_eL'],
+    'A_eT': fit_data['A_eT'],
+    'A_piL': fit_data['A_piL'],
+    'A_piT': fit_data['A_piT']
+})
+
+# Saving the DataFrame to a CSV file
+fit_df.to_csv('asymmetry_parameters.csv', index=False)
+
+#**************************************************************************************************************************************************
+# Accessing parameter estimates and their standard deviations from the summary DataFrame
+A_eL = summary_df.loc['A_eL', 'mean']
+A_eT = summary_df.loc['A_eT', 'mean']
+A_piL = summary_df.loc['A_piL', 'mean']
+A_piT = summary_df.loc['A_piT', 'mean']
+print(f"A_eL: {A_eL}, A_eT: {A_eT}, A_piL: {A_piL}, A_piT: {A_piT}")
+
+dA_eL = summary_df.loc['A_eL', 'sd']
+dA_eT = summary_df.loc['A_eT', 'sd']
+dA_piL = summary_df.loc['A_piL', 'sd']
+dA_piT = summary_df.loc['A_piT', 'sd']
+print(f"dA_eL: {dA_eL}, dA_eT: {dA_eT}, dA_piL: {dA_piL}, dA_piT: {dA_piT}")
+
+#**************************************************************************************************************************************************
+#Calculate the correlation matrix and covariance matrix:
+
+# Extract parameter samples from the fit
+samples = asym_fit.extract(permuted=True)
+
+# Creating the DataFrame from samples
+df = pd.DataFrame({
+    "A_eL": samples['A_eL'],
+    "A_eT": samples['A_eT'],
+    "A_piL": samples['A_piL'],
+    "A_piT": samples['A_piT'],
+})
+
+# Calculate the correlation matrix and covariance matrix
+correlation_matrix = df.corr()
+covariance_matrix = df.cov()
+
+print("correlation_matrix = ", correlation_matrix)
+print("covariance_matrix = ", covariance_matrix)
+
+#**************************************************************************************************************************************************
+#Plot the Covariance matrix:
+
+# Enable LaTeX rendering in matplotlib
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+
+# Define the mapping of names to formatted LaTeX names
+name_map = {
+    'A_eL': r'$A_e^L$',
+    'A_eT': r'$A_e^T$',
+    'A_piL': r'$A_{\pi}^L$',
+    'A_piT': r'$A_{\pi}^T$'
+}
+
+# Create a 4x4 subplot grid
+fig, axes = plt.subplots(4, 4, figsize=(12, 12))
+variables = list(name_map.keys())
+
+# Generate each plot in the grid
+for i in range(4):
+    for j in range(4):
+        if i != j:
+            sns.kdeplot(data=df, x=variables[j], y=variables[i], ax=axes[i, j], cmap='viridis', fill=True, levels=10)
+        else:
+            # Plot the distribution of the variable in the diagonal
+            sns.histplot(data=df, x=variables[j], ax=axes[i, j], color='blue', kde=True)
+        
+        # Set LaTeX formatted labels
+        axes[i, j].set_xlabel(name_map[variables[j]])
+        axes[i, j].set_ylabel(name_map[variables[i]])
+
+# Adjust layout to prevent overlap
+plt.tight_layout()
+plt.savefig('Covariance.png')
+
+#**************************************************************************************************************************************************
+#Plot the Partial Covariance matrix:
+
+# List of pairs to plot
+pairs = [
+    ('A_eL', 'A_eT'),
+    ('A_eL', 'A_piL'),
+    ('A_eL', 'A_piT'),
+    ('A_eT', 'A_piL'),
+    ('A_eT', 'A_piT'),
+    ('A_piL', 'A_piT')
+]
+
+# Create a 2x3 subplot grid
+fig, axes = plt.subplots(2, 3, figsize=(10, 6))
+axes = axes.flatten()  # Flatten the array of axes to make indexing easier
+
+# Generate each plot in the specified positions
+for i, (x, y) in enumerate(pairs):
+    sns.kdeplot(data=df, x=x, y=y, ax=axes[i], cmap='viridis', fill=False, levels=10)  # Consider using fill=True for better visual
+    # Update axis labels using the name map for better readability
+    axes[i].set_xlabel(name_map[x])
+    axes[i].set_ylabel(name_map[y])
+    axes[i].grid(False)
+
+# Adjust the layout to prevent label overlap and ensure everything fits well
+plt.tight_layout()
+plt.savefig('PartialCovariance.png')
+
+#**************************************************************************************************************************************************
+#Calculate fitted asymmetry uncertainties (pion detectors) and propagation of uncertainty with respect to the exteracted parameters, A_eL, A_eT, A_piL, A_piT:
+ 
+Measured_Asymmetry_PionDet_L_Fitted = np.zeros((num_PionDet, N_L))
+partial_A_eL_PionDet_L = np.zeros((num_PionDet, N_L))
+partial_A_eT_PionDet_L = np.zeros((num_PionDet, N_L))
+partial_A_piL_PionDet_L = np.zeros((num_PionDet, N_L))
+partial_A_piT_PionDet_L = np.zeros((num_PionDet, N_L))
+dMeasured_Asymmetry_PionDet_L_Fitted = np.zeros((num_PionDet, N_L))
+
+Measured_Asymmetry_PionDet_T_Fitted = np.zeros((num_PionDet, N_T))
+partial_A_eL_PionDet_T = np.zeros((num_PionDet, N_T))
+partial_A_eT_PionDet_T = np.zeros((num_PionDet, N_T))
+partial_A_piL_PionDet_T = np.zeros((num_PionDet, N_T))
+partial_A_piT_PionDet_T = np.zeros((num_PionDet, N_T))
+dMeasured_Asymmetry_PionDet_T_Fitted = np.zeros((num_PionDet, N_T))
+
+# Model for Pion detector
+for i in range(num_PionDet):
+    for j in range(N_L):
+        Measured_Asymmetry_PionDet_L_Fitted[i,j] = (1 - f_Pi_PionDet_L[i,j]) * (A_eL * A_eL_L_PionDet[i,j] * np.cos(theta_L_PionDet[i, j]) + A_eT * np.sin(theta_L_PionDet[i, j]) * (A_eT_V_L_PionDet[i, j] * np.sin(phi_L_PionDet[i, j]) + A_eT_H_L_PionDet[i, j] * np.cos(phi_L_PionDet[i, j]))) + f_Pi_PionDet_L[i, j] * ((A_piL * A_piL_L_PionDet[i,j]) * np.cos(theta_L_PionDet[i, j]) + A_piT * np.sin(theta_L_PionDet[i, j]) * (A_piT_V_L_PionDet[i, j] * np.sin(phi_L_PionDet[i, j]) + A_piT_H_L_PionDet[i, j] * np.cos(phi_L_PionDet[i, j])))
+        partial_A_eL_PionDet_L[i, j] = (1 - f_Pi_PionDet_L[i, j]) * A_eL_L_PionDet[i, j] * np.cos(theta_L_PionDet[i, j])
+        partial_A_eT_PionDet_L[i, j] = (1 - f_Pi_PionDet_L[i, j]) * np.sin(theta_L_PionDet[i, j]) * (A_eT_V_L_PionDet[i, j] * np.sin(phi_L_PionDet[i, j]) + A_eT_H_L_PionDet[i, j] * np.cos(phi_L_PionDet[i, j]))
+        partial_A_piL_PionDet_L[i, j] = f_Pi_PionDet_L[i, j] * A_piL_L_PionDet[i, j] * np.cos(theta_L_PionDet[i, j])
+        partial_A_piT_PionDet_L[i, j] = f_Pi_PionDet_L[i, j] * np.sin(theta_L_PionDet[i, j]) * (A_piT_V_L_PionDet[i, j] * np.sin(phi_L_PionDet[i, j]) + A_piT_H_L_PionDet[i, j] * np.cos(phi_L_PionDet[i, j]))
+        
+        # Propagate the uncertainties
+        dMeasured_Asymmetry_PionDet_L_Fitted[i, j] = np.sqrt(
+            (partial_A_eL_PionDet_L[i, j] * dA_eL) ** 2 +
+            (partial_A_eT_PionDet_L[i, j] * dA_eT) ** 2 +
+            (partial_A_piL_PionDet_L[i, j] * dA_piL) ** 2 +
+            (partial_A_piT_PionDet_L[i, j] * dA_piT) ** 2
+        )
+
+for i in range(num_PionDet):
+    for j in range(N_T):
+        Measured_Asymmetry_PionDet_T_Fitted[i,j] = (1 - f_Pi_PionDet_T[i,j]) * (A_eL * A_eL_T_PionDet[i,j] * np.cos(theta_T_PionDet[i, j]) + A_eT * np.sin(theta_T_PionDet[i, j]) * (A_eT_V_T_PionDet[i, j] * np.sin(phi_T_PionDet[i, j]) + A_eT_H_T_PionDet[i, j] * np.cos(phi_T_PionDet[i, j]))) + f_Pi_PionDet_T[i, j] * ((A_piL * A_piL_T_PionDet[i,j]) * np.cos(theta_T_PionDet[i, j]) + A_piT * np.sin(theta_T_PionDet[i, j]) * (A_piT_V_T_PionDet[i, j] * np.sin(phi_T_PionDet[i, j]) + A_piT_H_T_PionDet[i, j] * np.cos(phi_T_PionDet[i, j])))
+        partial_A_eL_PionDet_T[i, j] = (1 - f_Pi_PionDet_T[i, j]) * A_eL_T_PionDet[i, j] * np.cos(theta_T_PionDet[i, j])
+        partial_A_eT_PionDet_T[i, j] = (1 - f_Pi_PionDet_T[i, j]) * np.sin(theta_T_PionDet[i, j]) * (A_eT_V_T_PionDet[i, j] * np.sin(phi_T_PionDet[i, j]) + A_eT_H_T_PionDet[i, j] * np.cos(phi_T_PionDet[i, j]))
+        partial_A_piL_PionDet_T[i, j] = f_Pi_PionDet_T[i, j] * A_piL_T_PionDet[i, j] * np.cos(theta_T_PionDet[i, j])
+        partial_A_piT_PionDet_T[i, j] = f_Pi_PionDet_T[i, j] * np.sin(theta_T_PionDet[i, j]) * (A_piT_V_T_PionDet[i, j] * np.sin(phi_T_PionDet[i, j]) + A_piT_H_T_PionDet[i, j] * np.cos(phi_T_PionDet[i, j]))
+        
+        # Propagate the uncertainties
+        dMeasured_Asymmetry_PionDet_T_Fitted[i, j] = np.sqrt(
+            (partial_A_eL_PionDet_T[i, j] * dA_eL) ** 2 +
+            (partial_A_eT_PionDet_T[i, j] * dA_eT) ** 2 +
+            (partial_A_piL_PionDet_T[i, j] * dA_piL) ** 2 +
+            (partial_A_piT_PionDet_T[i, j] * dA_piT) ** 2
+        )
+
+#**************************************************************************************************************************************************
+#Calculate fitted asymmetry uncertainties (main detector) and propagation of uncertainty with respect to the exteracted parameters, A_eL, A_eT, A_piL, A_piT:
+
+Measured_Asymmetry_MainDet_L_Fitted = np.zeros((num_MainDet, N_L))
+partial_A_eL_MainDet_L = np.zeros((num_MainDet, N_L))
+partial_A_eT_MainDet_L = np.zeros((num_MainDet, N_L))
+partial_A_piL_MainDet_L = np.zeros((num_MainDet, N_L))
+partial_A_piT_MainDet_L = np.zeros((num_MainDet, N_L))
+dMeasured_Asymmetry_MainDet_L_Fitted = np.zeros((num_MainDet, N_L))
+
+Measured_Asymmetry_MainDet_T_Fitted = np.zeros((num_MainDet, N_T))
+partial_A_eL_MainDet_T = np.zeros((num_MainDet, N_T))
+partial_A_eT_MainDet_T = np.zeros((num_MainDet, N_T))
+partial_A_piL_MainDet_T = np.zeros((num_MainDet, N_T))
+partial_A_piT_MainDet_T = np.zeros((num_MainDet, N_T))
+dMeasured_Asymmetry_MainDet_T_Fitted = np.zeros((num_MainDet, N_T))
+
+# Model for Main detector
+for i in range(num_MainDet):
+    for j in range(N_L):
+        Measured_Asymmetry_MainDet_L_Fitted[i,j] = (1 - f_Pi_MainDet_L[i,j]) * (A_eL * A_eL_L_MainDet[i,j] * np.cos(theta_L_MainDet[i, j]) + A_eT * np.sin(theta_L_MainDet[i, j]) * (A_eT_V_L_MainDet[i, j] * np.sin(phi_L_MainDet[i, j]) + A_eT_H_L_MainDet[i, j] * np.cos(phi_L_MainDet[i, j]))) + f_Pi_MainDet_L[i, j] * ((A_piL * A_piL_L_MainDet[i,j]) * np.cos(theta_L_MainDet[i, j]) + A_piT * np.sin(theta_L_MainDet[i, j]) * (A_piT_V_L_MainDet[i, j] * np.sin(phi_L_MainDet[i, j]) + A_piT_H_L_MainDet[i, j] * np.cos(phi_L_MainDet[i, j])))
+        partial_A_eL_MainDet_L[i, j] = (1 - f_Pi_MainDet_L[i, j]) * A_eL_L_MainDet[i, j] * np.cos(theta_L_MainDet[i, j])
+        partial_A_eT_MainDet_L[i, j] = (1 - f_Pi_MainDet_L[i, j]) * np.sin(theta_L_MainDet[i, j]) * (A_eT_V_L_MainDet[i, j] * np.sin(phi_L_MainDet[i, j]) + A_eT_H_L_MainDet[i, j] * np.cos(phi_L_MainDet[i, j]))
+        partial_A_piL_MainDet_L[i, j] = f_Pi_MainDet_L[i, j] * A_piL_L_MainDet[i, j] * np.cos(theta_L_MainDet[i, j])
+        partial_A_piT_MainDet_L[i, j] = f_Pi_MainDet_L[i, j] * np.sin(theta_L_MainDet[i, j]) * (A_piT_V_L_MainDet[i, j] * np.sin(phi_L_MainDet[i, j]) + A_piT_H_L_MainDet[i, j] * np.cos(phi_L_MainDet[i, j]))
+        
+        # Propagate the uncertainties
+        dMeasured_Asymmetry_MainDet_L_Fitted[i, j] = np.sqrt(
+            (partial_A_eL_MainDet_L[i, j] * dA_eL) ** 2 +
+            (partial_A_eT_MainDet_L[i, j] * dA_eT) ** 2 +
+            (partial_A_piL_MainDet_L[i, j] * dA_piL) ** 2 +
+            (partial_A_piT_MainDet_L[i, j] * dA_piT) ** 2
+        )
+
+for i in range(num_MainDet):
+    for j in range(N_T):
+        Measured_Asymmetry_MainDet_T_Fitted[i,j] = (1 - f_Pi_MainDet_T[i,j]) * (A_eL * A_eL_T_MainDet[i,j] * np.cos(theta_T_MainDet[i, j]) + A_eT * np.sin(theta_T_MainDet[i, j]) * (A_eT_V_T_MainDet[i, j] * np.sin(phi_T_MainDet[i, j]) + A_eT_H_T_MainDet[i, j] * np.cos(phi_T_MainDet[i, j]))) + f_Pi_MainDet_T[i, j] * ((A_piL * A_piL_T_MainDet[i,j]) * np.cos(theta_T_MainDet[i, j]) + A_piT * np.sin(theta_T_MainDet[i, j]) * (A_piT_V_T_MainDet[i, j] * np.sin(phi_T_MainDet[i, j]) + A_piT_H_T_MainDet[i, j] * np.cos(phi_T_MainDet[i, j])))
+        partial_A_eL_MainDet_T[i, j] = (1 - f_Pi_MainDet_T[i, j]) * A_eL_T_MainDet[i, j] * np.cos(theta_T_MainDet[i, j])
+        partial_A_eT_MainDet_T[i, j] = (1 - f_Pi_MainDet_T[i, j]) * np.sin(theta_T_MainDet[i, j]) * (A_eT_V_T_MainDet[i, j] * np.sin(phi_T_MainDet[i, j]) + A_eT_H_T_MainDet[i, j] * np.cos(phi_T_MainDet[i, j]))
+        partial_A_piL_MainDet_T[i, j] = f_Pi_MainDet_T[i, j] * A_piL_T_MainDet[i, j] * np.cos(theta_T_MainDet[i, j])
+        partial_A_piT_MainDet_T[i, j] = f_Pi_MainDet_T[i, j] * np.sin(theta_T_MainDet[i, j]) * (A_piT_V_T_MainDet[i, j] * np.sin(phi_T_MainDet[i, j]) + A_piT_H_T_MainDet[i, j] * np.cos(phi_T_MainDet[i, j]))
+        
+        # Propagate the uncertainties
+        dMeasured_Asymmetry_MainDet_T_Fitted[i, j] = np.sqrt(
+            (partial_A_eL_MainDet_T[i, j] * dA_eL) ** 2 +
+            (partial_A_eT_MainDet_T[i, j] * dA_eT) ** 2 +
+            (partial_A_piL_MainDet_T[i, j] * dA_piL) ** 2 +
+            (partial_A_piT_MainDet_T[i, j] * dA_piT) ** 2
+        )
+
+#**************************************************************************************************************************************************
+#Save asymmetry values and their uncertainties for the analysis:
+
+Measured_Asymmetry_PionDet_L_Fitted_mean = np.mean(Measured_Asymmetry_PionDet_L_Fitted, axis=1)
+df_PionDet_L_Fitted = pd.DataFrame(Measured_Asymmetry_PionDet_L_Fitted_mean, columns=['Asymmetry_PionDet_L_Fitted_mean'])
+df_PionDet_L_Fitted.to_csv('Asymmetry_PionDet_L_Fitted_mean.csv', index=False)
+
+#dA_Measured_Asymmetry_PionDet_L_Fitted_mean = np.std(Measured_Asymmetry_PionDet_L_Fitted, axis=1)
+dA_Measured_Asymmetry_PionDet_L_Fitted_mean = np.mean(dMeasured_Asymmetry_PionDet_L_Fitted, axis=1)
+df_PionDet_L_Fitted_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_PionDet_L_Fitted_mean, columns=['dAsymmetry_PionDet_L_Fitted_mean'])
+df_PionDet_L_Fitted_Uncertainty.to_csv('dAsymmetry_PionDet_L_Fitted_mean.csv', index=False)
+
+Measured_Asymmetry_MainDet_L_Fitted_mean = np.mean(Measured_Asymmetry_MainDet_L_Fitted, axis=1)
+df_MainDet_L_Fitted = pd.DataFrame(Measured_Asymmetry_MainDet_L_Fitted_mean, columns=['Asymmetry_MainDet_L_Fitted_mean'])
+df_MainDet_L_Fitted.to_csv('Asymmetry_MainDet_L_Fitted_mean.csv', index=False)
+
+#dA_Measured_Asymmetry_MainDet_L_Fitted_mean = np.std(Measured_Asymmetry_MainDet_L_Fitted, axis=1)
+dA_Measured_Asymmetry_MainDet_L_Fitted_mean = np.mean(dMeasured_Asymmetry_MainDet_L_Fitted, axis=1)
+df_MainDet_L_Fitted_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_MainDet_L_Fitted_mean, columns=['dAsymmetry_MainDet_L_Fitted_mean'])
+df_MainDet_L_Fitted_Uncertainty.to_csv('dAsymmetry_MainDet_L_Fitted_mean.csv', index=False)
+
+Measured_Asymmetry_PionDet_T_Fitted_mean = np.mean(Measured_Asymmetry_PionDet_T_Fitted, axis=1)
+df_PionDet_T_Fitted = pd.DataFrame(Measured_Asymmetry_PionDet_T_Fitted_mean, columns=['Asymmetry_PionDet_T_Fitted_mean'])
+df_PionDet_T_Fitted.to_csv('Asymmetry_PionDet_T_Fitted_mean.csv', index=False)
+
+#dA_Measured_Asymmetry_PionDet_T_Fitted_mean = np.std(Measured_Asymmetry_PionDet_T_Fitted, axis=1)
+dA_Measured_Asymmetry_PionDet_T_Fitted_mean = np.mean(dMeasured_Asymmetry_PionDet_T_Fitted, axis=1)
+df_PionDet_T_Fitted_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_PionDet_T_Fitted_mean, columns=['dAsymmetry_PionDet_T_Fitted_mean'])
+df_PionDet_T_Fitted_Uncertainty.to_csv('dAsymmetry_PionDet_T_Fitted_mean.csv', index=False)
+
+Measured_Asymmetry_MainDet_T_Fitted_mean = np.mean(Measured_Asymmetry_MainDet_T_Fitted, axis=1)
+df_MainDet_T_Fitted = pd.DataFrame(Measured_Asymmetry_MainDet_T_Fitted_mean, columns=['Asymmetry_MainDet_T_Fitted_mean'])
+df_MainDet_T_Fitted.to_csv('Asymmetry_MainDet_T_Fitted_mean.csv', index=False)
+
+#dA_Measured_Asymmetry_MainDet_T_Fitted_mean = np.std(Measured_Asymmetry_MainDet_T_Fitted, axis=1)
+dA_Measured_Asymmetry_MainDet_T_Fitted_mean = np.mean(dMeasured_Asymmetry_MainDet_T_Fitted, axis=1)
+df_MainDet_T_Fitted_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_MainDet_T_Fitted_mean, columns=['dAsymmetry_MainDet_T_Fitted_mean'])
+df_MainDet_T_Fitted_Uncertainty.to_csv('dAsymmetry_MainDet_T_Fitted_mean.csv', index=False)
+
+Measured_Asymmetry_PionDet_L_mean = np.mean(Measured_Asymmetry_PionDet_L, axis=1)
+df_PionDet_L_Mock = pd.DataFrame(Measured_Asymmetry_PionDet_L_mean, columns=['Asymmetry_PionDet_L_Mock_mean'])
+df_PionDet_L_Mock.to_csv('Asymmetry_PionDet_L_Mock_mean.csv', index=False)
+
+dA_Measured_Asymmetry_PionDet_L_mean = np.std(Measured_Asymmetry_PionDet_L, axis=1)
+df_PionDet_L_Mock_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_PionDet_L_mean, columns=['dAsymmetry_PionDet_L_Mock_mean'])
+df_PionDet_L_Mock_Uncertainty.to_csv('dAsymmetry_PionDet_L_Mock_mean.csv', index=False)
+
+Measured_Asymmetry_MainDet_L_mean = np.mean(Measured_Asymmetry_MainDet_L, axis=1)
+df_MainDet_L_Mock = pd.DataFrame(Measured_Asymmetry_MainDet_L_mean, columns=['Asymmetry_MainDet_L_Mock_mean'])
+df_MainDet_L_Mock.to_csv('Asymmetry_MainDet_L_Mock_mean.csv', index=False)
+
+dA_Measured_Asymmetry_MainDet_L_mean = np.std(Measured_Asymmetry_MainDet_L, axis=1)
+df_MainDet_L_Mock_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_MainDet_L_mean, columns=['dAsymmetry_MainDet_L_Mock_mean'])
+df_MainDet_L_Mock_Uncertainty.to_csv('dAsymmetry_MainDet_L_Mock_mean.csv', index=False)
+
+Measured_Asymmetry_PionDet_T_mean = np.mean(Measured_Asymmetry_PionDet_T, axis=1)
+df_PionDet_T_Mock = pd.DataFrame(Measured_Asymmetry_PionDet_T_mean, columns=['Asymmetry_PionDet_T_Mock_mean'])
+df_PionDet_T_Mock.to_csv('Asymmetry_PionDet_T_Mock_mean.csv', index=False)
+
+dA_Measured_Asymmetry_PionDet_T_mean = np.std(Measured_Asymmetry_PionDet_T, axis=1)
+df_PionDet_T_Mock_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_PionDet_T_mean, columns=['dAsymmetry_PionDet_T_Mock_mean'])
+df_PionDet_T_Mock_Uncertainty.to_csv('dAsymmetry_PionDet_T_Mock_mean.csv', index=False)
+
+Measured_Asymmetry_MainDet_T_mean = np.mean(Measured_Asymmetry_MainDet_T, axis=1)
+df_MainDet_T_Mock = pd.DataFrame(Measured_Asymmetry_MainDet_T_mean, columns=['Asymmetry_MainDet_T_Mock_mean'])
+df_MainDet_T_Mock.to_csv('Asymmetry_MainDet_T_Mock_mean.csv', index=False)
+
+dA_Measured_Asymmetry_MainDet_T_mean = np.std(Measured_Asymmetry_MainDet_T, axis=1)
+df_MainDet_T_Mock_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_MainDet_T_mean, columns=['dAsymmetry_MainDet_T_Mock_mean'])
+df_MainDet_T_Mock_Uncertainty.to_csv('dAsymmetry_MainDet_T_Mock_mean.csv', index=False)
+
+Measured_Asymmetry_PionDet_L_True_mean = np.mean(Measured_Asymmetry_PionDet_L_True, axis=1)
+df_PionDet_L_True = pd.DataFrame(Measured_Asymmetry_PionDet_L_True_mean, columns=['Asymmetry_PionDet_L_True_mean'])
+df_PionDet_L_True.to_csv('Asymmetry_PionDet_L_True_mean.csv', index=False)
+
+dA_Measured_Asymmetry_PionDet_L_True_mean = np.std(Measured_Asymmetry_PionDet_L_True, axis=1)
+df_PionDet_L_True_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_PionDet_L_True_mean, columns=['dAsymmetry_PionDet_L_True_mean'])
+df_PionDet_L_True_Uncertainty.to_csv('dAsymmetry_PionDet_L_True_mean.csv', index=False)
+
+Measured_Asymmetry_MainDet_L_True_mean = np.mean(Measured_Asymmetry_MainDet_L_True, axis=1)
+df_MainDet_L_True = pd.DataFrame(Measured_Asymmetry_MainDet_L_True_mean, columns=['Asymmetry_MainDet_L_True_mean'])
+df_MainDet_L_True.to_csv('Asymmetry_MainDet_L_True_mean.csv', index=False)
+
+dA_Measured_Asymmetry_MainDet_L_True_mean = np.std(Measured_Asymmetry_MainDet_L_True, axis=1)
+df_MainDet_L_True_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_MainDet_L_True_mean, columns=['dAsymmetry_MainDet_L_True_mean'])
+df_MainDet_L_True_Uncertainty.to_csv('dAsymmetry_MainDet_L_True_mean.csv', index=False)
+
+Measured_Asymmetry_PionDet_T_True_mean = np.mean(Measured_Asymmetry_PionDet_T_True, axis=1)
+df_PionDet_T_True = pd.DataFrame(Measured_Asymmetry_PionDet_T_True_mean, columns=['Asymmetry_PionDet_T_True_mean'])
+df_PionDet_T_True.to_csv('Asymmetry_PionDet_T_True_mean.csv', index=False)
+
+dA_Measured_Asymmetry_PionDet_T_True_mean = np.std(Measured_Asymmetry_PionDet_T_True, axis=1)
+df_PionDet_T_True_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_PionDet_T_True_mean, columns=['dAsymmetry_PionDet_T_True_mean'])
+df_PionDet_T_True_Uncertainty.to_csv('dAsymmetry_PionDet_T_True_mean.csv', index=False)
+
+Measured_Asymmetry_MainDet_T_True_mean = np.mean(Measured_Asymmetry_MainDet_T_True, axis=1)
+df_MainDet_T_True = pd.DataFrame(Measured_Asymmetry_MainDet_T_True_mean, columns=['Asymmetry_MainDet_T_True_mean'])
+df_MainDet_T_True.to_csv('Asymmetry_MainDet_T_True_mean.csv', index=False)
+
+dA_Measured_Asymmetry_MainDet_T_True_mean = np.std(Measured_Asymmetry_MainDet_T_True, axis=1)
+df_MainDet_T_True_Uncertainty = pd.DataFrame(dA_Measured_Asymmetry_MainDet_T_True_mean, columns=['dAsymmetry_MainDet_T_True_mean'])
+df_MainDet_T_True_Uncertainty.to_csv('dAsymmetry_MainDet_T_True_mean.csv', index=False)
+
