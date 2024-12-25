@@ -5,4 +5,4 @@ To run the Bayesian code for the MOLLER experiment, follow the instructions belo
 4-The plots will be generated.
 
 
-To run the Bayesian code for the Qweak experiment, just run the Qweak Bayesian Code, and no more steps are needed. 
+To run the Bayesian code for the Qweak experiment, simply execute the Qweak Bayesian Code. No additional steps are required.
